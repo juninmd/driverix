@@ -1,0 +1,89 @@
+import { useCallback, useEffect, useState } from "react";
+import { api, type Backup, type RollbackReport } from "../lib/api";
+import { formatUnix } from "../lib/format";
+import { Dialog } from "./Dialog";
+
+export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKey: number }) {
+  const [list, setList] = useState<Backup[]>([]);
+  const [target, setTarget] = useState<Backup | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<RollbackReport | null>(null);
+  const [error, setError] = useState("");
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is the reload trigger
+  useEffect(() => {
+    api.backups().then(setList, (e) => setError(String(e)));
+  }, [refreshKey]);
+
+  const close = useCallback(() => setTarget(null), []);
+
+  const run = async () => {
+    if (!target) return;
+    setBusy(true);
+    setError("");
+    try {
+      setResult(await api.rollback(target.id));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+      setTarget(null);
+    }
+  };
+
+  if (list.length === 0 && !error) {
+    return <p className="empty">Nenhum backup ainda. Um backup é criado antes de cada instalação.</p>;
+  }
+
+  return (
+    <>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {result && (
+        <p className={result.errors.length ? "error" : "okbox"} role="status">
+          {result.restored} driver(s) restaurado(s).{result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}`}
+        </p>
+      )}
+      <ul className="cards">
+        {list.map((b) => (
+          <li key={b.id}>
+            <div>
+              <div className="title">{formatUnix(b.createdUnix)}</div>
+              <div className="sub">
+                {b.entries.length} pacote(s) · ponto de restauração: {b.restorePoint}
+              </div>
+              <div className="sub mono">{b.entries.map((e) => `${e.deviceName} ${e.oldVersion}`).join(" · ")}</div>
+            </div>
+            <button type="button" disabled={!elevated || busy || b.entries.length === 0} onClick={() => setTarget(b)}>
+              Restaurar
+            </button>
+          </li>
+        ))}
+      </ul>
+      {target && (
+        <Dialog
+          title="Restaurar drivers anteriores?"
+          onClose={close}
+          actions={
+            <>
+              <button type="button" onClick={close}>
+                Cancelar
+              </button>
+              <button type="button" className="primary" onClick={run}>
+                Restaurar
+              </button>
+            </>
+          }
+        >
+          <p>
+            Remove os pacotes instalados na atualização de {formatUnix(target.createdUnix)} e reinstala os anteriores a
+            partir do backup. Dispositivos podem reiniciar por alguns segundos.
+          </p>
+        </Dialog>
+      )}
+    </>
+  );
+}
