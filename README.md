@@ -1,53 +1,110 @@
-# Driverix
+<div align="center">
 
-Detecta o hardware do Windows e atualiza drivers pelo **Windows Update**, com ponto de restauração, backup dos drivers atuais e rollback. Irmão do [Faxina](https://github.com/juninmd/faxina): mesma stack (Tauri 2, Rust, React 19, Tailwind v4).
+<img src="src-tauri/icons/128x128@2x.png" width="112" alt="Ícone do Driverix" />
 
-## Por que existe
+# driverix
 
-Ferramentas como Driver Easy, CCleaner e Driver Booster fazem o mesmo trabalho (inventariar PnP, achar driver mais novo, instalar), mas com problemas recorrentes: instalação atrás de paywall, instaladores embutidos, casamento de driver instável e nenhum caminho de volta. O Driverix faz o mesmo trabalho com as regras opostas:
+**Encontre drivers desatualizados, instale com rede de segurança e volte atrás com um clique.**
 
-- **Só fontes oficiais.** O Windows Update (`Type='Driver'`) é a única fonte, com assinatura verificada pela Microsoft. Nada de binário baixado de mirror.
-- **Nunca faz downgrade.** Versão é comparada como tupla numérica (não texto); data só desempata quando a versão não é comparável.
-- **Reversível.** Ponto de restauração → exporta o pacote atual (`pnputil /export-driver`) → instala → verifica `ConfigManagerErrorCode`. Se qualquer passo anterior à instalação falhar, nada é instalado. A aba Backups restaura o pacote anterior.
-- **Sem pegadinhas.** Sem paywall, sem telemetria, sem reinício automático, sem aceitar EULA por você.
+Detecta o hardware do Windows e atualiza os drivers pelo Windows Update, com ponto de restauração, backup do driver atual e rollback. Sem paywall, sem instalador embutido, sem telemetria.
 
-A pesquisa por trás dessas escolhas (o que é público sobre como os concorrentes funcionam, o que não é) está em [`docs/RESEARCH.md`](docs/RESEARCH.md). Nenhum binário proprietário foi baixado, executado ou decompilado.
+[![CI](https://img.shields.io/github/actions/workflow/status/juninmd/driverix/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/juninmd/driverix/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-4f7dd6?style=flat-square)](LICENSE)
+![Plataforma](https://img.shields.io/badge/Windows%2010%20%C2%B7%2011-161b24?style=flat-square)
+![Tauri](https://img.shields.io/badge/Tauri%202%20%C2%B7%20Rust-5aa897?style=flat-square)
+[![Conventional Commits](https://img.shields.io/badge/commits-conventional-8b5cd6?style=flat-square)](https://www.conventionalcommits.org/pt-br/)
 
-## Uso
+<img src="docs/screenshot-updates.png" width="760" alt="Aba Atualizações com quatro drivers disponíveis, versão instalada e nova lado a lado, e três selecionados para instalar" />
 
-```
+<sub>Capturas com dados de demonstração (<code>scripts/demo-mock.js</code>): nenhum dispositivo real aparece nelas.</sub>
+
+</div>
+
+---
+
+> [!WARNING]
+> Instalar e restaurar foram validados com testes automatizados contra um `Host` falso, **ainda não numa máquina real com admin**. Busca e inventário foram testados de verdade. Faça o ciclo completo numa VM ou crie seu próprio ponto de restauração antes de confiar. Detalhes em [Limites conhecidos](#-limites-conhecidos).
+
+## ✨ O que ele faz
+
+| | |
+|---|---|
+| 🔍 **Inventário** | Lê todos os dispositivos PnP (`Win32_PnPEntity` + `Win32_PnPSignedDriver`): classe, fabricante, versão, data, INF, assinatura e código de problema do Gerenciador de Dispositivos. |
+| ⬆️ **Atualizações** | Pergunta ao Windows Update por drivers (`Type='Driver'`) e casa cada oferta com o dispositivo pelo hardware ID. A comparação é numérica (`10.9` < `10.10`) e **nunca faz downgrade**. |
+| 🛟 **Instalação segura** | Ponto de restauração → exporta o pacote atual (`pnputil /export-driver`) → instala → confere se o dispositivo ficou sem erro. Se qualquer passo antes da instalação falhar, nada é instalado. |
+| ⏪ **Rollback** | A aba Backups reinstala o pacote anterior e só conta como restaurado se o dispositivo voltar a reportar a versão antiga. |
+| 🧩 **Dispositivo sem driver** | Se o Gerenciador de Dispositivos reporta problema 28 (driver não instalado), o app oferece o driver compatível. Sem esse sinal, não adivinha. |
+| 🔒 **Confiança mínima na interface** | A interface só envia IDs. O backend revalida cada um contra a última busca (formato, presença, decisão `Newer`, admin, no máximo 25 por lote). |
+
+## 📸 Telas
+
+<table>
+  <tr>
+    <td><img src="docs/screenshot-devices.png" alt="Aba Dispositivos com tabela de hardware, classe, versão, data e estado" /></td>
+    <td><img src="docs/screenshot-backups.png" alt="Aba Backups com um backup contendo dois pacotes e o botão Restaurar" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Dispositivos: tudo o que o Windows enxerga</sub></td>
+    <td align="center"><sub>Backups: um clique para voltar</sub></td>
+  </tr>
+</table>
+
+## 🆚 Por que não usar Driver Easy, CCleaner ou Driver Booster?
+
+Eles fazem o mesmo trabalho base (inventariar, achar versão mais nova, instalar). O Driverix faz com as regras opostas:
+
+| | Típico de updaters comerciais | Driverix |
+|---|---|---|
+| Instalar | atrás de plano pago | sempre grátis |
+| Origem | mirrors e binários próprios | só Windows Update, assinado pela Microsoft |
+| Casamento | por nome ou texto, instável | por hardware ID e versão numérica |
+| Voltar atrás | pouco ou nenhum | restauração + backup do pacote anterior |
+| Telemetria / extras | frequentes | nenhuma |
+| EULA | aceito por você | nunca aceito automaticamente |
+
+> Nenhum binário proprietário foi baixado, executado ou decompilado: as EULAs proíbem, e a pesquisa usou só fontes públicas e APIs documentadas do Windows. O que foi e o que não foi confirmado está em [`docs/RESEARCH.md`](docs/RESEARCH.md).
+
+## 🚀 Uso
+
+Requer [Bun](https://bun.sh), [Rust](https://rustup.rs) e Windows 10 1607+ ou 11.
+
+```bash
 bun install
-bun tauri dev        # instalar/restaurar exigem terminal elevado
+bun tauri dev        # instalar e restaurar exigem terminal elevado
 ```
 
-Buscar não exige admin. Instalar e restaurar exigem; o app oferece “Reabrir como administrador”.
+Buscar não exige admin. Instalar e restaurar exigem; o app oferece **Reabrir como administrador**.
 
-CLI somente leitura, útil para diagnosticar:
+CLI somente leitura, boa para diagnóstico (nunca instala nada):
 
+```bash
+cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- devices        # inventário
+cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- scan --json    # ofertas
 ```
-cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- devices   # inventário
-cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- scan --json
-```
 
-## Limites conhecidos
+## ⚠️ Limites conhecidos
 
-- **Cobertura = o que a Microsoft publica.** Drivers de GPU lançados ontem pela NVIDIA/AMD/Intel podem não estar no Windows Update. Fontes de fabricante ficaram de fora de propósito: os endpoints são não documentados ou com termos que restringem automação (detalhes em `docs/RESEARCH.md`).
-- **Instalação e rollback foram testados com um `Host` falso** (ordem das etapas, abortos, manifesto), não ainda numa máquina real elevada. Faça um teste manual antes de confiar neles.
-- Só Windows 10 1607+ / 11 (usa `pnputil /export-driver`). Drivers inbox (não-`oem*.inf`) não são exportáveis; para eles o ponto de restauração é o caminho de volta.
+- **Cobertura = o que a Microsoft publica.** Drivers de GPU lançados ontem pela NVIDIA, AMD ou Intel podem ainda não estar no Windows Update. Fontes de fabricante ficaram de fora de propósito: os endpoints são não documentados ou com termos que restringem automação.
+- **Instalar e restaurar não rodaram numa máquina real elevada.** Ordem das etapas, abortos e manifestos estão cobertos por testes com `Host` falso; `icacls`, `pnputil` e a instalação via Windows Update, não.
+- Só Windows 10 1607+ e 11 (usa `pnputil /export-driver`). Drivers inbox (que não são `oem*.inf`) não são exportáveis; para eles, o ponto de restauração é o caminho de volta.
 
-## Roadmap
+## 🗺️ Roadmap
 
-1. Teste manual elevado do ciclo instalar → verificar → restaurar, e um e2e que o automatize numa VM.
-2. Fonte opcional: Microsoft Update Catalog (após confirmar os termos de uso).
-3. Atualização automática do app (updater assinado) e pipeline de release como no Faxina.
+1. Ciclo instalar → verificar → restaurar testado numa VM, e um e2e que o automatize.
+2. Fonte opcional: Microsoft Update Catalog, depois de confirmar os termos de uso.
+3. Atualização automática do app (updater assinado) e pipeline de release.
 
-## Desenvolvimento
+## 🛠️ Desenvolvimento
 
-Veja [`AGENTS.md`](AGENTS.md) para comandos, layout e invariantes de segurança. Gates:
+Veja [`AGENTS.md`](AGENTS.md) para comandos, layout e invariantes de segurança. [`SECURITY.md`](SECURITY.md) descreve o modelo de ameaças e como reportar uma falha. Gates:
 
-```
+```bash
 bun run lint && bun run typecheck && bun run test
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-MIT.
+Para refazer as capturas: `bun run dev` e injete `scripts/demo-mock.js` antes de a página carregar.
+
+## 📄 Licença
+
+[MIT](LICENSE)
