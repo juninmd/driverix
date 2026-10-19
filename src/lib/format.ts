@@ -33,3 +33,24 @@ export function problemText(code: number): string {
 export function formatUnix(secs: number): string {
   return new Date(secs * 1000).toLocaleString("pt-BR");
 }
+
+const OLD_DRIVER_YEARS = 3;
+
+/** Whole years from an ISO date to `now`, in UTC so the day never shifts; null when unknown. */
+export function ageYears(iso: string | null, now: Date = new Date()): number | null {
+  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const beforeAnniversary = now.getUTCMonth() + 1 < mo || (now.getUTCMonth() + 1 === mo && now.getUTCDate() < d);
+  return Math.max(0, now.getUTCFullYear() - y - (beforeAnniversary ? 1 : 0));
+}
+
+/**
+ * A third-party driver older than three years. Microsoft's inbox drivers are dated 2006-2009 on
+ * purpose and are updated through Windows itself, so they never count as old.
+ */
+export function isOldDriver(date: string | null, provider: string, now: Date = new Date()): boolean {
+  if (/microsoft/i.test(provider)) return false;
+  const years = ageYears(date, now);
+  return years !== null && years >= OLD_DRIVER_YEARS;
+}

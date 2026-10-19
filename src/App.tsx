@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Backups } from "./components/Backups";
 import { Devices } from "./components/Devices";
+import { Hardware } from "./components/Hardware";
 import { InstallFlow } from "./components/InstallFlow";
 import { Updates } from "./components/Updates";
+import { useHardware } from "./hooks/useHardware";
 import { useScan } from "./hooks/useScan";
 import { api, type Offer, type Status } from "./lib/api";
 
-type Tab = "updates" | "devices" | "backups";
+type Tab = "updates" | "devices" | "hardware" | "backups";
 
 const PHASE_TEXT = {
   inventory: "Lendo o hardware…",
@@ -15,6 +17,7 @@ const PHASE_TEXT = {
 
 export default function App() {
   const { state, start, cancel } = useScan();
+  const hardware = useHardware();
   const [status, setStatus] = useState<Status>({ elevated: false, backupsDir: "" });
   const [tab, setTab] = useState<Tab>("updates");
   const [installing, setInstalling] = useState<Offer[] | null>(null);
@@ -94,6 +97,7 @@ export default function App() {
           [
             ["updates", "Atualizações"],
             ["devices", "Dispositivos"],
+            ["hardware", "Hardware"],
             ["backups", "Backups"],
           ] as const
         ).map(([id, label]) => (
@@ -125,6 +129,7 @@ export default function App() {
           ))}
         {tab === "devices" &&
           (result ? <Devices devices={devices} /> : <p className="empty">Faça uma busca para listar o hardware.</p>)}
+        {tab === "hardware" && <Hardware state={hardware.state} onLoad={hardware.load} />}
         {tab === "backups" && <Backups elevated={status.elevated} refreshKey={backupsKey} />}
       </main>
 

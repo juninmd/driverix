@@ -317,6 +317,104 @@ label.inline {
   font-size: 0.9rem;
 }
 
+.data-table td > .chip {
+  margin-left: 0.4rem;
+}
+
+.hw {
+  display: grid;
+  grid-template-columns: 14rem 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.hw-nav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.hw-nav > button {
+  text-align: left;
+  background: none;
+  border-color: transparent;
+}
+.hw-nav > button.active {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--accent);
+}
+.hw-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+.hw-props {
+  min-width: 0;
+}
+.hw-props dl {
+  margin: 0;
+}
+.hw-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 14rem) 1fr;
+  gap: 1rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+.hw-row dt {
+  color: var(--muted);
+}
+.hw-row dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.hw-heading {
+  margin-top: 0.9rem;
+  padding: 0.35rem 0.6rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--panel);
+  border-radius: 6px;
+}
+.meter {
+  display: block;
+  height: 0.5rem;
+  max-width: 24rem;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.meter.hot > span {
+  background: var(--bad);
+}
+
+@media (max-width: 720px) {
+  .hw {
+    grid-template-columns: 1fr;
+  }
+  .hw-nav {
+    position: static;
+  }
+}
+
 @keyframes pop-in {
   from {
     opacity: 0;

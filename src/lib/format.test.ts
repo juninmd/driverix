@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatBytes, formatDate, problemText } from "./format";
+import { ageYears, formatBytes, formatDate, isOldDriver, problemText } from "./format";
 
 describe("formatBytes", () => {
   test("scales and rounds", () => {
@@ -28,5 +28,30 @@ describe("problemText", () => {
     expect(problemText(0)).toBe("OK");
     expect(problemText(28)).toBe("Sem driver instalado");
     expect(problemText(99)).toBe("Problema (código 99)");
+  });
+});
+
+describe("ageYears", () => {
+  const now = new Date("2026-10-19T12:00:00Z");
+  test("counts whole years, not crossing the anniversary early", () => {
+    expect(ageYears("2023-10-19", now)).toBe(3);
+    expect(ageYears("2023-10-20", now)).toBe(2);
+    expect(ageYears("2026-12-01", now)).toBe(0);
+  });
+  test("is null for unknown dates", () => {
+    expect(ageYears(null, now)).toBeNull();
+    expect(ageYears("19/10/2023", now)).toBeNull();
+  });
+});
+
+describe("isOldDriver", () => {
+  const now = new Date("2026-10-19T12:00:00Z");
+  test("flags third-party drivers from three years back", () => {
+    expect(isOldDriver("2022-01-01", "Realtek", now)).toBe(true);
+    expect(isOldDriver("2024-01-01", "Realtek", now)).toBe(false);
+  });
+  test("never flags Microsoft inbox drivers or unknown dates", () => {
+    expect(isOldDriver("2006-06-21", "Microsoft", now)).toBe(false);
+    expect(isOldDriver(null, "Realtek", now)).toBe(false);
   });
 });

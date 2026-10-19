@@ -11,7 +11,7 @@ Driverix: Tauri 2 desktop driver updater for Windows. Rust backend (`src-tauri/`
 | Lint / format | `bun run lint` / `bun run format` (Biome) |
 | Types / tests | `bun run typecheck` / `bun run test` |
 | Rust gates | `cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` |
-| Read-only live check | `cargo run --bin driverix-cli -- devices\|scan [--json]` (never installs) |
+| Read-only live check | `cargo run --bin driverix-cli -- devices\|hardware\|scan [--json]` (never installs) |
 
 `cargo` needs `../dist` (`tauri::generate_context!` embeds it): run `bun run build` once on a clean checkout.
 
@@ -19,7 +19,7 @@ Driverix: Tauri 2 desktop driver updater for Windows. Rust backend (`src-tauri/`
 
 - `matching.rs` pure: version parsing/compare, candidate-vs-device decision, offers. `model.rs` serde shapes shared with `src/lib/api.ts` (keep in sync).
 - `ps.rs` runs the fixed scripts in `scripts/*.ps1` (`-EncodedCommand`); caller data goes in the `DRIVERIX_INPUT` env var as JSON, never into the script text.
-- `inventory.rs` / `updates.rs` parse script output (pure, tested); `guard.rs` validates every request; `host.rs` is the `Host` trait plus `WindowsHost` (PowerShell + `pnputil`); `install.rs` is the install/rollback flow, tested against a fake `Host`; `backup.rs` manifests; `commands.rs` the only Tauri surface.
+- `inventory.rs` / `updates.rs` parse script output (pure, tested); `guard.rs` validates every request; `host.rs` is the `Host` trait plus `WindowsHost` (PowerShell + `pnputil`); `install.rs` is the install/rollback flow, tested against a fake `Host`; `vendors.rs` offline PCI/USB vendor + class table (pure, tested; fills `Device.vendor`/`hint`); `hardware.rs` + `scripts/hardware.ps1` the AIDA64-style overview (script -> `HardwareInfo` -> labelled `Section`s shared by the UI and the text report; read-only); `backup.rs` manifests; `commands.rs` the only Tauri surface.
 
 ## Safety invariants (do not weaken)
 
@@ -33,10 +33,12 @@ Driverix: Tauri 2 desktop driver updater for Windows. Rust backend (`src-tauri/`
 - System tools run from `GetSystemDirectoryW` by absolute path, never via `PATH` or env vars.
 - EULAs are never auto-accepted; an update with an unaccepted EULA is reported, not installed.
 - A device with an empty driver row is only offered an update when Config Manager reports problem 28; otherwise it is `Unknown` (could be a WMI gap, and there would be no backup).
+- `Win32_VideoController.AdapterRAM` is a 32-bit field capped at 4 GB; `hardware.ps1` reads `HardwareInformation.qwMemorySize` from the display class key instead. Serial numbers are never collected, so a copied report is safe to paste.
 - Dates are UTC midnight stored in CIM as local time: convert with `ToUniversalTime()` or the day shifts.
 
 ## Gotchas
 
 - PowerShell read from stdin ends a block at the first blank line and exits 0 with no output; that is why scripts travel as `-EncodedCommand`.
 - The Windows Update search takes ~1 minute on a cold machine; it is cancellable by killing the child.
+- `scripts/hardware.ps1` was written and its output parsing tested without a Windows machine; run `driverix-cli hardware` on a real one before a release.
 - Install and rollback paths are covered by fake-`Host` unit tests only; they need a manual run on a real elevated machine before a release.
