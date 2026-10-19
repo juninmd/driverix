@@ -132,6 +132,7 @@ fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> std::thread::JoinHandle<S
 
 pub mod scripts {
     pub const INVENTORY: &str = include_str!("../scripts/inventory.ps1");
+    pub const HARDWARE: &str = include_str!("../scripts/hardware.ps1");
     pub const SCAN_UPDATES: &str = include_str!("../scripts/scan_updates.ps1");
     pub const INSTALL_UPDATES: &str = include_str!("../scripts/install_updates.ps1");
     pub const RESTORE_AGE: &str = include_str!("../scripts/restore_age.ps1");
@@ -154,6 +155,7 @@ mod tests {
     fn encoded_scripts_fit_the_command_line_limit() {
         for s in [
             INVENTORY,
+            HARDWARE,
             SCAN_UPDATES,
             INSTALL_UPDATES,
             RESTORE_AGE,
@@ -167,6 +169,7 @@ mod tests {
     fn scripts_never_read_caller_data_except_through_the_input_variable() {
         for s in [
             INVENTORY,
+            HARDWARE,
             SCAN_UPDATES,
             INSTALL_UPDATES,
             RESTORE_AGE,

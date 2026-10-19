@@ -20,6 +20,10 @@ pub struct Device {
     pub signer: String,
     /// Config Manager problem code; 0 means the device works.
     pub problem_code: u32,
+    /// Vendor decoded from the hardware IDs (`vendors.rs`); empty when the IDs say nothing.
+    pub vendor: String,
+    /// `PCI 10DE:2684 · Controlador de vídeo`; what is left to identify a device without a name.
+    pub hint: String,
 }
 
 /// A driver update published by Windows Update.

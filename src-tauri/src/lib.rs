@@ -2,6 +2,7 @@ pub mod backup;
 mod commands;
 pub mod error;
 pub mod guard;
+pub mod hardware;
 pub mod host;
 pub mod install;
 pub mod inventory;
@@ -11,6 +12,7 @@ pub mod ps;
 pub mod scan;
 pub mod sys;
 pub mod updates;
+pub mod vendors;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +21,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_status,
             commands::load_devices,
+            commands::load_hardware,
             commands::scan_updates,
             commands::cancel_operation,
             commands::install_updates,

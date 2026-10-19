@@ -182,3 +182,17 @@ Design rules for an open-source replacement:
 4. Confirm pnputil exit codes and reboot-pending registry keys.
 5. Read Catalog and NVIDIA/AMD/Intel terms of use before any automation.
 6. Verify the `WinVerifyTrust` call signature from the Learn page before writing code.
+
+## 7. Open-source competitors on GitHub (surveyed 2026-10-19)
+
+Source: public GitHub search (`driver-updater` topic) and each project's README page; nothing was run or decompiled. Star counts are small across the board, so this is a young field.
+
+| Project | Stack | What it does that Driverix did not | Adopted? |
+|---|---|---|---|
+| OpenDriverUpdater | C# / WinUI 3 | Trust scoring per candidate, `export-json`, CLI. Update Catalog and vendor sources are planned, not shipped. | JSON export already exists (`driverix-cli --json`); scoring left for later. |
+| Hexnest | C# / Avalonia | Device list grouped by class with hardware IDs, OS/CPU/BIOS/memory/disk/network summary, plain-text hardware report, install queue that survives reboots, offline INF repositories. | **Yes:** Hardware tab and text report. Offline INF repositories and the resumable queue are roadmap candidates. |
+| Karate | C# / WPF | Three driver channels (Windows Update, Update Catalog, NVIDIA direct), `pnputil` snapshot of third-party drivers. | No: Catalog and NVIDIA terms are unconfirmed (section 3.2 and 3.4). |
+| win-driver-updater | Python / Tk | Shows Vendor/Device IDs for code 28 devices so a driver can be found by hand; category filters; Update Catalog `.cab` download. | **Yes:** the ID decoding (`vendors.rs`). The Catalog download is not adopted for the same ToS reason. |
+| DriverUpdate-Pro | Electron | Only links to manufacturer download pages. | No. |
+
+Takeaways applied: decode hardware IDs offline so unnamed devices are still identifiable; flag old third-party drivers (Microsoft inbox drivers excluded, their 2006 dates are by design); give users an AIDA64-like hardware overview they can copy into a forum post. Hardware vendor ID tables come from the public PCI-SIG and USB-IF registries; extend them in `vendors.rs`, the test there rejects duplicates and malformed IDs.

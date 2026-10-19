@@ -4,6 +4,7 @@
 use crate::backup::{self, Manifest};
 use crate::error::Error;
 use crate::guard;
+use crate::hardware::{self, HardwareView};
 use crate::host::WindowsHost;
 use crate::install::{self, InstallOptions, InstallReport, RollbackReport};
 use crate::model::{Device, Offer};
@@ -69,6 +70,16 @@ pub async fn load_devices() -> Result<Vec<Device>, String> {
     // Read-only and unguarded, so it gets its own flag instead of resetting a scan's cancel.
     tauri::async_runtime::spawn_blocking(move || {
         inventory::collect(&AtomicBool::new(false)).map_err(msg)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn load_hardware() -> Result<HardwareView, String> {
+    // Read-only like `load_devices`, so it also gets its own cancel flag.
+    tauri::async_runtime::spawn_blocking(move || {
+        hardware::collect(&AtomicBool::new(false)).map_err(msg)
     })
     .await
     .map_err(|e| e.to_string())?

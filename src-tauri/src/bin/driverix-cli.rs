@@ -1,7 +1,7 @@
-//! Headless, read-only front end: `driverix-cli devices|scan [--json]`. It never installs;
+//! Headless, read-only front end: `driverix-cli devices|hardware|scan [--json]`. It never installs;
 //! installing stays in the app, where the confirmation and backup flow live.
 
-use driverix_lib::{inventory, model::Decision, scan::scan_all};
+use driverix_lib::{hardware, inventory, model::Decision, scan::scan_all};
 use std::process::ExitCode;
 use std::sync::atomic::AtomicBool;
 
@@ -18,6 +18,14 @@ fn main() -> ExitCode {
                 for d in devices.iter().filter(|d| d.problem_code != 0) {
                     println!("  [{}] {} ({})", d.problem_code, d.name, d.class);
                 }
+                ExitCode::SUCCESS
+            }
+            Err(e) => fail(e),
+        },
+        Some("hardware") => match hardware::collect(&never) {
+            Ok(view) if json => print_json(&view.sections),
+            Ok(view) => {
+                print!("{}", view.report);
                 ExitCode::SUCCESS
             }
             Err(e) => fail(e),
@@ -43,7 +51,7 @@ fn main() -> ExitCode {
             Err(e) => fail(e),
         },
         _ => {
-            eprintln!("uso: driverix-cli <devices|scan> [--json]");
+            eprintln!("uso: driverix-cli <devices|hardware|scan> [--json]");
             ExitCode::from(2)
         }
     }

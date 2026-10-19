@@ -30,6 +30,8 @@ Detecta o hardware do Windows e atualiza os drivers pelo Windows Update, com pon
 | | |
 |---|---|
 | 🔍 **Inventário** | Lê todos os dispositivos PnP (`Win32_PnPEntity` + `Win32_PnPSignedDriver`): classe, fabricante, versão, data, INF, assinatura e código de problema do Gerenciador de Dispositivos. |
+| 🖥️ **Hardware (estilo AIDA64)** | Aba com árvore de categorias e lista de propriedades: computador, SO, placa-mãe e BIOS, CPU (núcleos, clock, caches), memória (módulos, tipo, velocidade, uso), vídeo (VRAM real, driver), discos (tipo, saúde, uso por volume), rede e bateria. Botão para copiar o relatório em texto. Somente leitura. |
+| 🏷️ **Base de IDs** | Decodifica `VEN_`/`VID_` dos hardware IDs offline (fabricante e classe PCI), então um dispositivo sem nome ainda aparece como `PCI 10DE:2684 · Controlador de vídeo`. Drivers de terceiros com 3+ anos ganham o selo "antigo". |
 | ⬆️ **Atualizações** | Pergunta ao Windows Update por drivers (`Type='Driver'`) e casa cada oferta com o dispositivo pelo hardware ID. A comparação é numérica (`10.9` < `10.10`) e **nunca faz downgrade**. |
 | 🛟 **Instalação segura** | Ponto de restauração → exporta o pacote atual (`pnputil /export-driver`) → instala → confere se o dispositivo ficou sem erro. Se qualquer passo antes da instalação falhar, nada é instalado. |
 | ⏪ **Rollback** | A aba Backups reinstala o pacote anterior e só conta como restaurado se o dispositivo voltar a reportar a versão antiga. |
@@ -42,6 +44,12 @@ Detecta o hardware do Windows e atualiza os drivers pelo Windows Update, com pon
   <tr>
     <td><img src="docs/screenshot-devices.png" alt="Aba Dispositivos com tabela de hardware, classe, versão, data e estado" /></td>
     <td><img src="docs/screenshot-backups.png" alt="Aba Backups com um backup contendo dois pacotes e o botão Restaurar" /></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshot-hardware.png" alt="Aba Hardware com categorias à esquerda e propriedades da memória à direita, com barra de uso" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub>Hardware: visão de máquina no estilo AIDA64</sub></td>
   </tr>
   <tr>
     <td align="center"><sub>Dispositivos: tudo o que o Windows enxerga</sub></td>
@@ -79,6 +87,7 @@ CLI somente leitura, boa para diagnóstico (nunca instala nada):
 
 ```bash
 cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- devices        # inventário
+cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- hardware       # relatório de hardware (--json para dados)
 cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- scan --json    # ofertas
 ```
 
@@ -86,6 +95,7 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- scan --json
 
 - **Cobertura = o que a Microsoft publica.** Drivers de GPU lançados ontem pela NVIDIA, AMD ou Intel podem ainda não estar no Windows Update. Fontes de fabricante ficaram de fora de propósito: os endpoints são não documentados ou com termos que restringem automação.
 - **Instalar e restaurar não rodaram numa máquina real elevada.** Ordem das etapas, abortos e manifestos estão cobertos por testes com `Host` falso; `icacls`, `pnputil` e a instalação via Windows Update, não.
+- **A aba Hardware ainda não rodou numa máquina Windows real:** o parser e a formatação têm testes, o script de coleta (`hardware.ps1`) não. `driverix-cli hardware` ajuda a conferir.
 - Só Windows 10 1607+ e 11 (usa `pnputil /export-driver`). Drivers inbox (que não são `oem*.inf`) não são exportáveis; para eles, o ponto de restauração é o caminho de volta.
 
 ## 🗺️ Roadmap

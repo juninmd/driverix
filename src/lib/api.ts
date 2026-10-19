@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-// Keep in sync with the serde shapes in src-tauri/src/{model,host,install,backup,scan,commands}.rs.
+// Keep in sync with the serde shapes in src-tauri/src/{model,host,install,backup,scan,hardware,commands}.rs.
 export type Decision = "newer" | "same" | "older" | "unknown";
 
 export interface Device {
@@ -18,6 +18,8 @@ export interface Device {
   signed: boolean;
   signer: string;
   problemCode: number;
+  vendor: string;
+  hint: string;
 }
 
 export interface Candidate {
@@ -91,11 +93,32 @@ export interface RollbackReport {
   errors: string[];
 }
 
+export interface HwRow {
+  label: string;
+  value: string;
+  /** 0-100 usage the row can be drawn as a bar; null when not a usage. */
+  meter: number | null;
+  /** Groups the rows below it; carries no value. */
+  heading: boolean;
+}
+
+export interface HwSection {
+  id: string;
+  title: string;
+  rows: HwRow[];
+}
+
+export interface HardwareView {
+  sections: HwSection[];
+  report: string;
+}
+
 export type ScanPhase = "inventory" | "windows-update";
 
 export const api = {
   status: () => invoke<Status>("get_status"),
   loadDevices: () => invoke<Device[]>("load_devices"),
+  loadHardware: () => invoke<HardwareView>("load_hardware"),
   scanUpdates: () => invoke<ScanResult>("scan_updates"),
   cancel: () => invoke<void>("cancel_operation"),
   install: (updateIds: string[], allowNoRestorePoint: boolean) =>

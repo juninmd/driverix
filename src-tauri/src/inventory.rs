@@ -1,6 +1,7 @@
 use crate::error::Result;
 use crate::model::Device;
 use crate::ps::{run_script, scripts};
+use crate::vendors;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
@@ -11,6 +12,7 @@ pub fn parse_devices(json: &str) -> Result<Vec<Device>> {
     }
     let mut devices: Vec<Device> = serde_json::from_str(json)?;
     devices.retain(|d| !d.instance_id.is_empty());
+    devices.iter_mut().for_each(vendors::annotate);
     devices.sort_by(|a, b| a.class.cmp(&b.class).then_with(|| a.name.cmp(&b.name)));
     Ok(devices)
 }
@@ -44,6 +46,14 @@ mod tests {
         assert!(broken.date.is_none() && broken.inf.is_empty());
         let ok = devices.iter().find(|d| d.inf == "oem7.inf").unwrap();
         assert_eq!(ok.hardware_ids, vec!["PCI\\VEN_1&DEV_2"]);
+    }
+
+    #[test]
+    fn devices_get_a_vendor_and_hint_from_their_ids() {
+        let json = r#"[{"instanceId":"PCI\\VEN_10DE&DEV_2684\\3","hardwareIds":["PCI\\VEN_10DE&DEV_2684"],"problemCode":28}]"#;
+        let d = &parse_devices(json).unwrap()[0];
+        assert_eq!(d.vendor, "NVIDIA");
+        assert_eq!(d.hint, "PCI 10DE:2684");
     }
 
     #[test]
