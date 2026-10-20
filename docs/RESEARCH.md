@@ -196,3 +196,38 @@ Source: public GitHub search (`driver-updater` topic) and each project's README 
 | DriverUpdate-Pro | Electron | Only links to manufacturer download pages. | No. |
 
 Takeaways applied: decode hardware IDs offline so unnamed devices are still identifiable; flag old third-party drivers (Microsoft inbox drivers excluded, their 2006 dates are by design); give users an AIDA64-like hardware overview they can copy into a forum post. Hardware vendor ID tables come from the public PCI-SIG and USB-IF registries; extend them in `vendors.rs`, the test there rejects duplicates and malformed IDs.
+
+## 8. Landscape and improvement backlog (surveyed 2026-10-20)
+
+Method: public web search snippets only (no pages fetched, nothing run). Everything below is **[S]** unless marked **[U]**. Prices are third-party reports and conflict between sources; confirm on vendor sites.
+
+### 8.1 Open-source and free tools
+
+| Tool | Role | Lesson for Driverix |
+|---|---|---|
+| Snappy Driver Installer Origin | Offline driverpacks + index-only mode, "found / absent in driverpacks" | Pack provenance is the user's risk; stays out of scope. Licence **[U]** (the original SDI was GPLv3). |
+| [DriverStore Explorer (RAPR)](https://github.com/lostindark/DriverStoreExplorer) | Lists and batch-deletes driver packages, flags old/unused ones, force-delete optional. Releases are signed through [SignPath](https://signpath.org/projects/driver-store-explorer) | Adopt: superseded-package cleanup. SignPath is a free signing route for OSS. |
+| [Display Driver Uninstaller](https://github.com/Wagnard/display-drivers-uninstaller) | Removes GPU driver leftovers, meant for Safe Mode | Do not automate. Link to it in GPU guidance. |
+| [LOLDrivers](https://docsearch.algolia.com/mcp/docs/repo/magicsword-io/loldrivers) + [Microsoft driver block rules](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/design/microsoft-recommended-driver-block-rules) | Datasets of vulnerable/malicious signed drivers | Read-only audit of installed drivers against them. No updater does this. |
+| OEM tools: [Dell Command Update](https://www.dell.com/support/kbdoc/en-ap/000223721/dell-command-update-command-line-driver-scan-error) (`dcu-cli`, custom catalog needs `-allowXML=enable`), HP Image Assistant, Lenovo System Update | Free, vendor-published BIOS/firmware/driver catalogs | Best legitimate source for firmware and OEM-tuned drivers that Windows Update lacks. HP/Lenovo CLI details **[U]**. |
+| NVIDIA app, AMD Adrenalin, Intel DSA | Official GPU/Wi-Fi/LAN updaters | Windows Update lags them. Detect GPU vendor and point to the official app instead of scraping endpoints. |
+| fwupd / LVFS | Firmware updates | Linux/FreeBSD only; no Windows path found. Not applicable. |
+
+### 8.2 Paid and enterprise
+
+- Consumer: Driver Booster (~$23/yr), Driver Easy (~$30/yr), DriverMax (free tier, ~$5/mo), Auslogics (~$50), Outbyte, Fortect. All sell the install step or bundle optimizers; see section 5.
+- Enterprise: [Windows Autopatch / Intune driver updates](https://learn.microsoft.com/en-us/windows/deployment/windows-autopatch/manage/windows-autopatch-manage-driver-and-firmware-updates) (approve per ring), Patch My PC and ManageEngine (vendor catalogs). One unverified Reddit report says unapproved OEM "extension" drivers reach pilot rings **[U]**. Driverix is not an enterprise product; the takeaway is that per-ring approval and OEM catalogs are what paying teams buy.
+
+### 8.3 Backlog, ranked (value / risk)
+
+1. **Release pipeline + signed updater.** Sign with SignPath (OSS) or Azure Trusted Signing; `tauri-plugin-updater` >= 2.12 with `requireSignedVersion` (a downgrade advisory is reported for older versions, CVE-2026-95625, **[U]** check upstream). Without signing, SmartScreen warns on an app that asks for admin. Already on the README roadmap.
+2. **Real-machine validation.** CI already has a `windows-latest` job; add a step that runs `driverix-cli devices|hardware|scan --json` and uploads the output. Closes the AGENTS.md gap on `hardware.ps1` for free. Install/rollback still need a VM.
+3. **Superseded-package cleanup.** `pnputil /enum-drivers` -> group by original INF + class, offer deleting older `oem*.inf` (never in use, never `/force`), export first. Reuses the backup and guard machinery.
+4. **Vulnerable-driver audit (read-only).** Hash installed `.sys` files and compare with the Microsoft block list / LOLDrivers; show as a Security tab. Differentiator; needs an offline, versioned dataset.
+5. **OEM source, detect-only first.** Read manufacturer from `hardware.ps1`, then link to or read-only scan with the OEM tool. Install through the OEM tool, not through Driverix, until terms are checked.
+6. **GPU guidance.** When the GPU driver is old, say Windows Update lags the vendor and link to the official app (and DDU for clean installs). No scraping.
+7. **Offer metadata.** Show WU `DriverClass`, `DriverManufacturer`, optional vs recommended (`BrowseOnly`) so users see why an offer exists.
+8. **Resumable install queue** (Hexnest idea): survive reboots, reuse the manifest.
+9. **Native WUA via `windows-rs` instead of PowerShell.** Speed gain **[U]** (no benchmark found); the scripts are the tested path, so only if profiling shows a problem.
+
+Rejected again: Update Catalog scraping (terms unconfirmed, section 3.2), NVIDIA/AMD endpoints (section 3.4/3.5), driverpacks (provenance).
