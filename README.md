@@ -22,6 +22,8 @@ Detecta o hardware do Windows e atualiza os drivers pelo Windows Update, com pon
 
 ---
 
+> Começa com `bun install && bun tauri dev`. Buscar não exige admin; instalar e restaurar exigem terminal elevado.
+
 > [!WARNING]
 > Instalar e restaurar foram validados com testes automatizados contra um `Host` falso, **ainda não numa máquina real com admin**. Busca e inventário foram testados de verdade. Faça o ciclo completo numa VM ou crie seu próprio ponto de restauração antes de confiar. Detalhes em [Limites conhecidos](#-limites-conhecidos).
 
@@ -77,7 +79,7 @@ Eles fazem o mesmo trabalho base (inventariar, achar versão mais nova, instalar
 Requer [Bun](https://bun.sh), [Rust](https://rustup.rs) e Windows 10 1607+ ou 11.
 
 ```bash
-bun install
+bun install          # dependências
 bun tauri dev        # instalar e restaurar exigem terminal elevado
 ```
 
@@ -104,16 +106,55 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- scan --json
 2. Fonte opcional: Microsoft Update Catalog, depois de confirmar os termos de uso.
 3. Atualização automática do app (updater assinado) e pipeline de release.
 
+## 🧭 Como funciona
+
+```mermaid
+flowchart LR
+  UI["Updates.tsx / InstallFlow.tsx"] -->|"somente IDs<br/>lib/api.ts"| CMD["commands.rs<br/>install_updates"]
+  CMD --> GUARD["guard.rs<br/>select_offers"]
+  GUARD --> INST["install.rs<br/>restore point, export, install, verify"]
+  INST --> HOST["host.rs<br/>WindowsHost + pnputil"]
+  INST --> BK["backup.rs<br/>manifestos"]
+  SCAN["scan.rs<br/>scan_all"] --> PS["ps.rs<br/>scripts/*.ps1"]
+  SCAN --> UPD["updates.rs"]
+  UPD --> MATCH["matching.rs<br/>decisão Newer"]
+  MATCH -->|"ofertas"| UI
+```
+
+A interface nunca escolhe o que instalar: ela envia só IDs, e cada um é revalidado em `guard.rs` contra a última busca. Detalhes em [Segurança](#-segurança).
+
 ## 🛠️ Desenvolvimento
 
-Veja [`AGENTS.md`](AGENTS.md) para comandos, layout e invariantes de segurança. [`SECURITY.md`](SECURITY.md) descreve o modelo de ameaças e como reportar uma falha. Gates:
+Veja [`AGENTS.md`](AGENTS.md) para comandos, layout e invariantes de segurança. Gates:
 
 ```bash
-bun run lint && bun run typecheck && bun run test
-cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+bun install                                                                  # dependências (CI usa --frozen-lockfile)
+bun run lint && bun run typecheck && bun run test                            # Biome, tsc e testes JS
+bun run build                                                                # gera dist/, exigido pelo cargo
+cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test   # gates Rust
 ```
 
 Para refazer as capturas: `bun run dev` e injete `scripts/demo-mock.js` antes de a página carregar.
+
+## 🤝 Contribuição
+
+Commits seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/), validados pelo commitlint no CI (`commitlint.config.js`). Antes de abrir um PR, rode os gates da seção Desenvolvimento.
+
+## 📚 Documentação
+
+| | Documento | O que tem |
+|---|---|---|
+| 📘 | [`AGENTS.md`](AGENTS.md) | comandos, layout dos módulos e invariantes de segurança |
+| 🔐 | [`SECURITY.md`](SECURITY.md) | modelo de ameaças e como reportar uma falha |
+| 🔬 | [`docs/RESEARCH.md`](docs/RESEARCH.md) | fontes públicas sobre como drivers são detectados e atualizados, com o que foi ou não confirmado |
+
+## 🔐 Segurança
+
+- Só o Windows Update (`Type='Driver'`) fornece atualizações. Nenhum binário de terceiros é baixado ou executado.
+- Ordem fixa: ponto de restauração, exportação do pacote atual, instalação, verificação. Falha antes da instalação aborta tudo.
+- Downgrade nunca é instalado, e EULA nunca é aceita automaticamente.
+- Backups ficam em `%SystemDrive%\ProgramData\Driverix\backups`, com escrita só para Administradores e SYSTEM.
+- Relatar falhas: veja [`SECURITY.md`](SECURITY.md).
 
 ## 📄 Licença
 
