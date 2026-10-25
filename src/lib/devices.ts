@@ -1,4 +1,5 @@
 import type { Device } from "./api";
+import { isOldDriver } from "./format";
 
 export type DeviceSort = "inventory" | "problems" | "name" | "oldest";
 
@@ -23,4 +24,41 @@ export function sortDevices(devices: Device[], sort: DeviceSort): Device[] {
     default:
       return copy;
   }
+}
+
+export interface IndexedDevice {
+  device: Device;
+  /** Lowercased text the search box matches against; built once per inventory, not per keystroke. */
+  searchText: string;
+  old: boolean;
+}
+
+export interface DeviceFilter {
+  query: string;
+  onlyProblems: boolean;
+  onlyOld: boolean;
+  cls: string;
+}
+
+/** Precomputes what filtering needs, so typing only does string `includes` per device. */
+export function indexDevices(devices: Device[], now: Date = new Date()): IndexedDevice[] {
+  return devices.map((device) => ({
+    device,
+    searchText:
+      `${device.name} ${device.manufacturer} ${device.provider} ${device.vendor} ${device.hint} ${device.instanceId}`.toLowerCase(),
+    old: isOldDriver(device.date, device.provider, now),
+  }));
+}
+
+export function selectDevices(index: IndexedDevice[], filter: DeviceFilter): Device[] {
+  const q = filter.query.trim().toLowerCase();
+  const out: Device[] = [];
+  for (const { device, searchText, old } of index) {
+    if (filter.onlyProblems && device.problemCode === 0) continue;
+    if (filter.onlyOld && !old) continue;
+    if (filter.cls && device.class !== filter.cls) continue;
+    if (q && !searchText.includes(q)) continue;
+    out.push(device);
+  }
+  return out;
 }

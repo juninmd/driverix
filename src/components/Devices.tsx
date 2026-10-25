@@ -1,28 +1,23 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import type { Device } from "../lib/api";
-import { DEVICE_SORTS, type DeviceSort, sortDevices } from "../lib/devices";
+import { DEVICE_SORTS, type DeviceSort, indexDevices, selectDevices, sortDevices } from "../lib/devices";
 import { formatDate, isOldDriver, problemText } from "../lib/format";
 
 export function Devices({ devices }: { devices: Device[] }) {
   const [query, setQuery] = useState("");
+  // Typing stays responsive: the list catches up with the box instead of blocking each keystroke.
+  const deferredQuery = useDeferredValue(query);
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [onlyOld, setOnlyOld] = useState(false);
   const [cls, setCls] = useState("");
   const [sort, setSort] = useState<DeviceSort>("inventory");
 
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = devices.filter(
-      (d) =>
-        (!onlyProblems || d.problemCode !== 0) &&
-        (!onlyOld || isOldDriver(d.date, d.provider)) &&
-        (!cls || d.class === cls) &&
-        (!q ||
-          `${d.name} ${d.manufacturer} ${d.provider} ${d.vendor} ${d.hint} ${d.instanceId}`.toLowerCase().includes(q)),
-    );
-    return sortDevices(filtered, sort);
-  }, [devices, query, onlyProblems, onlyOld, cls, sort]);
+  const index = useMemo(() => indexDevices(devices), [devices]);
+  const shown = useMemo(
+    () => sortDevices(selectDevices(index, { query: deferredQuery, onlyProblems, onlyOld, cls }), sort),
+    [index, deferredQuery, onlyProblems, onlyOld, cls, sort],
+  );
 
   return (
     <>
