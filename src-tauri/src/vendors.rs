@@ -112,7 +112,8 @@ const USB_VENDORS: &[(&str, &str)] = &[
 /// Base class of `PCI\CC_BBSS..` (PCI-SIG class codes).
 fn pci_class(code: &str) -> Option<&'static str> {
     let code = code.to_ascii_uppercase();
-    let exact = match code.get(..4)? {
+    // A code shorter than four digits still has a base class; only the exact lookup is skipped.
+    let exact = match code.get(..4).unwrap_or_default() {
         "0101" => "Controlador IDE",
         "0106" => "Controlador SATA",
         "0108" => "Controlador NVMe",
@@ -276,6 +277,8 @@ mod tests {
     fn falls_back_to_the_base_class() {
         assert_eq!(pci_class("0C0A00"), Some("Barramento serial"));
         assert_eq!(pci_class("FF00"), None);
+        // A two-digit class code must still give its base class, not lose the hint.
+        assert_eq!(pci_class("03"), Some("Controlador de vídeo"));
     }
 
     #[test]
