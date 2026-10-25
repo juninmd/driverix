@@ -16,7 +16,14 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
   useEffect(() => {
     api
       .backups()
-      .then(setList, (e) => setError(String(e)))
+      .then(
+        (l) => {
+          setList(l);
+          // A reload that works clears an earlier failed load instead of leaving its alert up.
+          setError("");
+        },
+        (e) => setError(String(e)),
+      )
       .finally(() => setLoaded(true));
   }, [refreshKey]);
 
@@ -85,7 +92,12 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               >
                 Restaurar
               </button>
-              <button type="button" disabled={!elevated || busy} onClick={() => setDoomed(b)}>
+              <button
+                type="button"
+                title={elevated ? undefined : "Clique em “Reabrir como administrador” no topo para apagar"}
+                disabled={!elevated || busy}
+                onClick={() => setDoomed(b)}
+              >
                 Apagar
               </button>
             </div>
