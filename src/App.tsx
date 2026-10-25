@@ -100,21 +100,33 @@ export default function App() {
             ["hardware", "Hardware"],
             ["backups", "Backups"],
           ] as const
-        ).map(([id, label]) => (
+        ).map(([id, label], index, all) => (
           <button
             key={id}
+            id={`tab-${id}`}
             type="button"
             role="tab"
             aria-selected={tab === id}
+            aria-controls="tabpanel"
+            // Roving tabindex: one tab stop for the group, arrows move between tabs (WAI-ARIA tabs pattern).
+            tabIndex={tab === id ? 0 : -1}
             className={tab === id ? "active" : ""}
             onClick={() => setTab(id)}
+            onKeyDown={(e) => {
+              const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              const next = all[(index + step + all.length) % all.length][0];
+              setTab(next);
+              document.getElementById(`tab-${next}`)?.focus();
+            }}
           >
             {label}
           </button>
         ))}
       </div>
 
-      <main role="tabpanel">
+      <main id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "updates" &&
           (result ? (
             <Updates
