@@ -16,19 +16,22 @@ const PHASE_TEXT = {
 } as const;
 
 export default function App() {
-  const { state, start, cancel } = useScan();
+  const { state, last, start, cancel } = useScan();
   const hardware = useHardware();
-  const [status, setStatus] = useState<Status>({ elevated: false, backupsDir: "" });
+  // Null until the backend answers, so the admin banner does not flash on an elevated launch.
+  const [status, setStatus] = useState<Status | null>(null);
+  const [statusError, setStatusError] = useState("");
+  const elevated = status?.elevated ?? false;
   const [tab, setTab] = useState<Tab>("updates");
   const [installing, setInstalling] = useState<Offer[] | null>(null);
   const [backupsKey, setBackupsKey] = useState(0);
   const [elevateError, setElevateError] = useState("");
 
   useEffect(() => {
-    api.status().then(setStatus);
+    api.status().then(setStatus, (e) => setStatusError(String(e)));
   }, []);
 
-  const result = state.kind === "done" ? state.result : null;
+  const result = last?.result ?? null;
   const running = state.kind === "running";
   const devices = result?.devices ?? [];
   const byId = useMemo(() => new Map(devices.map((d) => [d.instanceId, d])), [devices]);
@@ -53,7 +56,7 @@ export default function App() {
       <header>
         <div>
           <h1>Driverix</h1>
-          <p className="sub">Drivers do Windows Update, com backup e rollback</p>
+          <p className="sub">Drivers do Windows Update, com backup e restauração</p>
         </div>
         {running ? (
           <button type="button" onClick={cancel}>
@@ -66,7 +69,12 @@ export default function App() {
         )}
       </header>
 
-      {!status.elevated && (
+      {statusError && (
+        <p className="error" role="alert">
+          Não foi possível ler o estado do Driverix: {statusError}
+        </p>
+      )}
+      {status && !status.elevated && (
         <div className="banner" role="status">
           <span>Você pode buscar sem privilégios, mas instalar e restaurar exigem administrador.</span>
           <button type="button" onClick={elevate}>
@@ -86,9 +94,21 @@ export default function App() {
           {state.message}
         </p>
       )}
+      {state.kind === "cancelled" && (
+        <p className="progress" role="status">
+          Busca cancelada.
+        </p>
+      )}
+      {result?.updatesError && (
+        <p className="error" role="alert">
+          Não foi possível consultar o Windows Update: {result.updatesError}. Os dispositivos continuam listados.
+        </p>
+      )}
       {result && (
         <p className="summary">
           {devices.length} dispositivos · {newer} atualização(ões) disponível(is) · {broken} com problema
+          {last &&
+            ` · buscado às ${new Date(last.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
         </p>
       )}
 
@@ -100,29 +120,43 @@ export default function App() {
             ["hardware", "Hardware"],
             ["backups", "Backups"],
           ] as const
-        ).map(([id, label]) => (
+        ).map(([id, label], index, all) => (
           <button
             key={id}
+            id={`tab-${id}`}
             type="button"
             role="tab"
             aria-selected={tab === id}
+            aria-controls="tabpanel"
+            // Roving tabindex: one tab stop for the group, arrows move between tabs (WAI-ARIA tabs pattern).
+            tabIndex={tab === id ? 0 : -1}
             className={tab === id ? "active" : ""}
             onClick={() => setTab(id)}
+            onKeyDown={(e) => {
+              const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              const next = all[(index + step + all.length) % all.length][0];
+              setTab(next);
+              document.getElementById(`tab-${next}`)?.focus();
+            }}
           >
             {label}
           </button>
         ))}
       </div>
 
-      <main role="tabpanel">
+      <main id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "updates" &&
           (result ? (
             <Updates
               offers={result.offers}
               installedVersion={installedVersion}
               busy={running || installing !== null}
-              elevated={status.elevated}
+              elevated={elevated}
+              broken={broken}
               onInstall={setInstalling}
+              onShowDevices={() => setTab("devices")}
             />
           ) : (
             <p className="empty">Clique em “Buscar atualizações” para começar.</p>
@@ -130,7 +164,7 @@ export default function App() {
         {tab === "devices" &&
           (result ? <Devices devices={devices} /> : <p className="empty">Faça uma busca para listar o hardware.</p>)}
         {tab === "hardware" && <Hardware state={hardware.state} onLoad={hardware.load} />}
-        {tab === "backups" && <Backups elevated={status.elevated} refreshKey={backupsKey} />}
+        {tab === "backups" && <Backups elevated={elevated} refreshKey={backupsKey} />}
       </main>
 
       {installing && (

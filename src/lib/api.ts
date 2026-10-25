@@ -49,6 +49,8 @@ export interface Offer {
 export interface ScanResult {
   devices: Device[];
   offers: Offer[];
+  /** Windows Update failure; the devices are still valid when this is set. */
+  updatesError: string | null;
 }
 
 export interface Status {
@@ -71,7 +73,11 @@ export interface InstallReport {
   outcomes: UpdateOutcome[];
   rebootRequired: boolean;
   problemDevices: string[];
+  /** Devices still on an older driver than the one offered, though Windows Update reported success. */
+  staleDevices: string[];
   verified: boolean;
+  /** Set when Windows Update itself failed; the backup is still there. */
+  installError: string | null;
 }
 
 export interface BackupEntry {
@@ -125,6 +131,7 @@ export const api = {
     invoke<InstallReport>("install_updates", { updateIds, allowNoRestorePoint }),
   backups: () => invoke<Backup[]>("list_backups"),
   rollback: (id: string) => invoke<RollbackReport>("rollback_backup", { id }),
+  deleteBackup: (id: string) => invoke<void>("delete_backup", { id }),
   relaunchElevated: () => invoke<void>("relaunch_elevated"),
   onScanPhase: (cb: (p: ScanPhase) => void) => listen<ScanPhase>("scan-phase", (e) => cb(e.payload)),
 };

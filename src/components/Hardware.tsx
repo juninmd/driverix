@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { HardwareState } from "../hooks/useHardware";
 import type { HwSection } from "../lib/api";
 
@@ -10,12 +10,16 @@ interface Props {
 export function Hardware({ state, onLoad }: Props) {
   const [selected, setSelected] = useState("summary");
   const [copied, setCopied] = useState<"" | "ok" | "fail">("");
+  const copiedTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (state.kind === "idle") onLoad();
   }, [state.kind, onLoad]);
 
-  if (state.kind === "idle" || state.kind === "loading") {
+  // A second click must restart the message, not let the first click's timer clear it early.
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+
+  if (state.kind === "idle" || (state.kind === "loading" && !state.previous)) {
     return (
       <p className="progress" role="status">
         Lendo o hardware…
@@ -33,7 +37,11 @@ export function Hardware({ state, onLoad }: Props) {
     );
   }
 
-  const { sections, report } = state.view;
+  // A refresh keeps the previous view on screen, marked as loading, instead of blanking the panel.
+  const view = state.kind === "done" ? state.view : state.previous;
+  if (!view) return null;
+  const { sections, report } = view;
+  const refreshing = state.kind === "loading";
   const current = sections.find((s) => s.id === selected) ?? sections[0];
 
   const copy = async () => {
@@ -43,7 +51,8 @@ export function Hardware({ state, onLoad }: Props) {
     } catch {
       setCopied("fail");
     }
-    setTimeout(() => setCopied(""), 2500);
+    window.clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => setCopied(""), 2500);
   };
 
   return (
@@ -61,8 +70,8 @@ export function Hardware({ state, onLoad }: Props) {
           </button>
         ))}
         <div className="hw-actions">
-          <button type="button" onClick={onLoad}>
-            Atualizar
+          <button type="button" onClick={onLoad} disabled={refreshing}>
+            {refreshing ? "Atualizando…" : "Atualizar"}
           </button>
           <button type="button" onClick={copy}>
             Copiar relatório
@@ -104,6 +113,7 @@ function Props({ section }: { section: HwSection }) {
                       role="progressbar"
                       aria-label={r.label}
                       aria-valuenow={r.meter}
+                      aria-valuetext={`${r.meter}%${r.meter >= 90 ? ", alto" : ""}`}
                       aria-valuemin={0}
                       aria-valuemax={100}
                     >

@@ -1,17 +1,38 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Device } from "../lib/api";
+import { DEVICE_SORTS, type DeviceSort, devicesToTsv, sortDevices } from "../lib/devices";
 import { formatDate, isOldDriver, problemText } from "../lib/format";
 
 export function Devices({ devices }: { devices: Device[] }) {
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" focuses the search, as in most table tools, unless the user is already typing somewhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea, [contenteditable='true']")) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [onlyOld, setOnlyOld] = useState(false);
   const [cls, setCls] = useState("");
+  const [sort, setSort] = useState<DeviceSort>("inventory");
+  const [copied, setCopied] = useState<"" | "ok" | "fail">("");
+  const copiedTimer = useRef<number | undefined>(undefined);
+
+  // A second click must restart the message, and unmount must not leave a timer behind.
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
 
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return devices.filter(
+    const filtered = devices.filter(
       (d) =>
         (!onlyProblems || d.problemCode !== 0) &&
         (!onlyOld || isOldDriver(d.date, d.provider)) &&
@@ -19,13 +40,15 @@ export function Devices({ devices }: { devices: Device[] }) {
         (!q ||
           `${d.name} ${d.manufacturer} ${d.provider} ${d.vendor} ${d.hint} ${d.instanceId}`.toLowerCase().includes(q)),
     );
-  }, [devices, query, onlyProblems, onlyOld, cls]);
+    return sortDevices(filtered, sort);
+  }, [devices, query, onlyProblems, onlyOld, cls, sort]);
 
   return (
     <>
       <div className="filters">
         <input
           type="search"
+          ref={searchRef}
           placeholder="Buscar dispositivo, fabricante ou ID"
           aria-label="Buscar dispositivo"
           value={query}
@@ -35,6 +58,13 @@ export function Devices({ devices }: { devices: Device[] }) {
           <option value="">Todas as classes</option>
           {classes.map((c) => (
             <option key={c}>{c}</option>
+          ))}
+        </select>
+        <select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as DeviceSort)}>
+          {Object.entries(DEVICE_SORTS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
           ))}
         </select>
         <label>
@@ -48,8 +78,30 @@ export function Devices({ devices }: { devices: Device[] }) {
         <span className="count">
           {shown.length} de {devices.length}
         </span>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(devicesToTsv(shown));
+              setCopied("ok");
+            } catch {
+              setCopied("fail");
+            }
+            window.clearTimeout(copiedTimer.current);
+            copiedTimer.current = window.setTimeout(() => setCopied(""), 2500);
+          }}
+          disabled={shown.length === 0}
+        >
+          Copiar lista
+        </button>
+        {copied && (
+          <span role="status" className={copied === "ok" ? "okbox" : "error"}>
+            {copied === "ok" ? "Lista copiada (TSV)." : "Não foi possível copiar."}
+          </span>
+        )}
       </div>
       <table className="data-table">
+        <caption className="sr-only">Dispositivos encontrados</caption>
         <thead>
           <tr>
             <th>Dispositivo</th>
@@ -74,19 +126,24 @@ export function Devices({ devices }: { devices: Device[] }) {
                 {formatDate(d.date)}
                 {isOldDriver(d.date, d.provider) && (
                   <span className="chip warn" title="Driver de terceiros com 3 anos ou mais">
-                    antigo
+                    antigo (3+ anos)
                   </span>
                 )}
               </td>
-              <td className={d.problemCode === 0 ? "ok" : "bad"}>{problemText(d.problemCode)}</td>
+              <td className={d.problemCode === 0 ? "ok" : "bad"}>
+                {problemText(d.problemCode)}
+                {d.version && !d.signed && (
+                  <span className="chip warn" title="O Windows não reporta assinatura digital para o driver instalado">
+                    sem assinatura
+                  </span>
+                )}
+              </td>
             </tr>
           ))}
           {shown.length === 0 && (
             <tr>
-              <td colSpan={6} className="empty">
-                {devices.length === 0
-                  ? "Nenhum dispositivo encontrado."
-                  : "Nenhum dispositivo corresponde aos filtros."}
+              <td colSpan={6} className="empty" role="status">
+                {devices.length === 0 ? "Nenhum dispositivo listado." : "Nenhum dispositivo corresponde aos filtros."}
               </td>
             </tr>
           )}
