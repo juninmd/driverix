@@ -62,12 +62,12 @@ export function Devices({ devices }: { devices: Device[] }) {
       <table className="data-table">
         <thead>
           <tr>
-            <th>Dispositivo</th>
-            <th>Classe</th>
-            <th>Fornecedor</th>
-            <th>Versão</th>
-            <th>Data</th>
-            <th>Estado</th>
+            <th scope="col">Dispositivo</th>
+            <th scope="col">Classe</th>
+            <th scope="col">Fornecedor</th>
+            <th scope="col">Versão</th>
+            <th scope="col">Data</th>
+            <th scope="col">Estado</th>
           </tr>
         </thead>
         <tbody>

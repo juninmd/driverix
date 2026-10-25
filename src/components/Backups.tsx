@@ -69,7 +69,12 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               </div>
               <div className="sub mono">{b.entries.map((e) => `${e.deviceName} ${e.oldVersion}`).join(" · ")}</div>
             </div>
-            <button type="button" disabled={!elevated || busy || b.entries.length === 0} onClick={() => setTarget(b)}>
+            <button
+              type="button"
+              aria-label={`Restaurar backup de ${formatUnix(b.createdUnix)}`}
+              disabled={!elevated || busy || b.entries.length === 0}
+              onClick={() => setTarget(b)}
+            >
               Restaurar
             </button>
           </li>

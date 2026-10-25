@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Offer } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
 
@@ -23,6 +23,11 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
   const allOn = installable.length > 0 && installable.every((o) => picked.has(o.candidate.updateId));
   const toggleAll = () => setPicked(allOn ? new Set() : new Set(installable.map((o) => o.candidate.updateId)));
   const chosen = installable.filter((o) => picked.has(o.candidate.updateId));
+  // The DOM has no attribute for "some selected", so it is set on the node.
+  const selectAll = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectAll.current) selectAll.current.indeterminate = picked.size > 0 && !allOn;
+  }, [picked, allOn]);
 
   if (installable.length === 0) {
     return (
@@ -37,13 +42,19 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
       <table className="data-table">
         <thead>
           <tr>
-            <th className="check">
-              <input type="checkbox" checked={allOn} onChange={toggleAll} aria-label="Selecionar todas" />
+            <th scope="col" className="check">
+              <input
+                ref={selectAll}
+                type="checkbox"
+                checked={allOn}
+                onChange={toggleAll}
+                aria-label="Selecionar todas"
+              />
             </th>
-            <th>Atualização</th>
-            <th>Instalado → novo</th>
-            <th>Data</th>
-            <th>Tamanho</th>
+            <th scope="col">Atualização</th>
+            <th scope="col">Instalado → novo</th>
+            <th scope="col">Data</th>
+            <th scope="col">Tamanho</th>
           </tr>
         </thead>
         <tbody>
