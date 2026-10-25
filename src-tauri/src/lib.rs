@@ -27,6 +27,7 @@ pub fn run() {
             commands::install_updates,
             commands::list_backups,
             commands::rollback_backup,
+            commands::delete_backup,
             commands::relaunch_elevated,
         ])
         .run(tauri::generate_context!())

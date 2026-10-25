@@ -175,6 +175,20 @@ pub async fn rollback_backup(
     .map_err(|e| e.to_string())?
 }
 
+/// Deleting a backup is final: the rollback point for that update is gone with it.
+#[tauri::command]
+pub async fn delete_backup(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    if !sys::is_elevated() {
+        return Err("Apagar backups exige executar como administrador".into());
+    }
+    let _busy = BusyGuard::acquire(&state.busy)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        backup::delete(&sys::backups_root(), &id).map_err(msg)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Reopens this exe through UAC; the current instance exits only if the new one started.
 #[tauri::command]
 pub async fn relaunch_elevated(app: AppHandle) -> Result<(), String> {
