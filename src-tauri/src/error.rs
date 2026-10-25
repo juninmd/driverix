@@ -25,7 +25,7 @@ impl fmt::Display for Error {
                 write!(f, "{what} falhou sem detalhes")
             }
             Error::Command { what, detail } => write!(f, "{what} falhou: {detail}"),
-            Error::Parse(m) => write!(f, "resposta inesperada do Windows ({m})"),
+            Error::Parse(m) => write!(f, "dados inválidos ({m})"),
             Error::Timeout(what) => write!(f, "{what} excedeu o tempo limite"),
             Error::Cancelled => write!(f, "cancelado"),
             Error::Denied(m) => write!(f, "{m}"),
