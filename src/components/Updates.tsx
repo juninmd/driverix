@@ -84,7 +84,7 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
           type="button"
           className="primary"
           disabled={busy || chosen.length === 0 || !elevated}
-          title={elevated ? undefined : "Execute como administrador para instalar"}
+          title={elevated ? undefined : "Clique em “Reabrir como administrador” no topo para instalar"}
           onClick={() => onInstall(chosen)}
         >
           Instalar selecionadas
