@@ -43,6 +43,15 @@ describe("devicesToTsv", () => {
     expect(tsv.split("\n")).toEqual(["Dispositivo\tClasse\tVersão\tID", "Net card 2\tNet\t1.0\tPCIA"]);
   });
 
+  test("does not let a spreadsheet run a cell as a formula", () => {
+    const row = devicesToTsv([dev("X", { name: '=HYPERLINK("x")', class: "  ", version: "+1" })]).split("\n")[1];
+    expect(row).toBe("'=HYPERLINK(\"x\")\t—\t'+1\tX");
+  });
+
+  test("a whitespace-only field shows a dash, not an empty cell", () => {
+    expect(devicesToTsv([dev("X", { name: "   ", class: " ", version: "" })]).split("\n")[1]).toBe("X\t—\t—\tX");
+  });
+
   test("shows a dash for missing fields and an empty list is just the header", () => {
     expect(devicesToTsv([dev("X", { name: "", class: "", version: "" })]).split("\n")[1]).toBe("X\t—\t—\tX");
     expect(devicesToTsv([]).split("\n")).toHaveLength(1);
