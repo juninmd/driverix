@@ -188,7 +188,11 @@ pub fn rollback(host: &dyn Host, root: &Path, backup_id: &str) -> Result<Rollbac
         }
         match host.add_driver(&pkg.join("*.inf")) {
             Ok(()) => attempted.push(e),
-            Err(err) => report.errors.push(format!("{}: {err}", e.device_name)),
+            // The stale package is already gone, so the device may now have no third-party driver.
+            Err(err) => report.errors.push(format!(
+                "{}: não foi possível reinstalar o driver de backup ({err}). O dispositivo pode estar sem driver de terceiros; reinstale pelo Windows Update.",
+                e.device_name
+            )),
         }
     }
     if attempted.is_empty() {
