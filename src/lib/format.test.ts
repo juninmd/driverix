@@ -15,6 +15,12 @@ describe("formatBytes", () => {
     expect(formatBytes(1536)).toBe("1.5 KB");
     expect(formatBytes(250 * 1024 * 1024)).toBe("250 MB");
   });
+  test("never prints 1024 of a unit; the next unit is shown instead", () => {
+    // 1023.7 KB rounds to 1024 KB, which should read as 1.0 MB.
+    expect(formatBytes(1048269)).toBe("1.0 MB");
+    expect(formatBytes(1023.96 * 1024 * 1024)).toBe("1.0 GB");
+    expect(formatBytes(1023)).toBe("1023 B");
+  });
   test("shows a dash for unknown sizes", () => {
     expect(formatBytes(0)).toBe("—");
     expect(formatBytes(Number.NaN)).toBe("—");
@@ -35,6 +41,8 @@ describe("problemText", () => {
   test("names the common codes and falls back to the number", () => {
     expect(problemText(0)).toBe("OK");
     expect(problemText(28)).toBe("Sem driver instalado");
+    // 39 is the one that calls for a driver reinstall; without a name the user has no next step.
+    expect(problemText(39)).toBe("Driver corrompido ou ausente");
     expect(problemText(99)).toBe("Problema (código 99)");
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Device } from "./api";
-import { sortDevices } from "./devices";
+import { devicesToTsv, sortDevices } from "./devices";
 
 const dev = (instanceId: string, extra: Partial<Device> = {}): Device =>
   ({ instanceId, name: instanceId, date: null, problemCode: 0, ...extra }) as Device;
@@ -34,5 +34,26 @@ describe("sortDevices", () => {
 
   test("handles an empty list", () => {
     expect(sortDevices([], "oldest")).toEqual([]);
+  });
+});
+
+describe("devicesToTsv", () => {
+  test("writes a header and one row per device, without breaking the columns", () => {
+    const tsv = devicesToTsv([dev("PCIA", { name: "Net\tcard\n2", class: "Net", version: "1.0" })]);
+    expect(tsv.split("\n")).toEqual(["Dispositivo\tClasse\tVersão\tID", "Net card 2\tNet\t1.0\tPCIA"]);
+  });
+
+  test("does not let a spreadsheet run a cell as a formula", () => {
+    const row = devicesToTsv([dev("X", { name: '=HYPERLINK("x")', class: "  ", version: "+1" })]).split("\n")[1];
+    expect(row).toBe("'=HYPERLINK(\"x\")\t—\t'+1\tX");
+  });
+
+  test("a whitespace-only field shows a dash, not an empty cell", () => {
+    expect(devicesToTsv([dev("X", { name: "   ", class: " ", version: "" })]).split("\n")[1]).toBe("X\t—\t—\tX");
+  });
+
+  test("shows a dash for missing fields and an empty list is just the header", () => {
+    expect(devicesToTsv([dev("X", { name: "", class: "", version: "" })]).split("\n")[1]).toBe("X\t—\t—\tX");
+    expect(devicesToTsv([]).split("\n")).toHaveLength(1);
   });
 });
