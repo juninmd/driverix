@@ -6,7 +6,8 @@ use crate::backup::{self, Manifest};
 use crate::error::{Error, Result};
 use crate::guard::is_oem_inf;
 use crate::host::{Host, UpdateOutcome};
-use crate::model::Offer;
+use crate::matching::decide;
+use crate::model::{Decision, Device, Offer};
 use serde::Serialize;
 use std::path::Path;
 
@@ -49,6 +50,17 @@ fn ensure_restore_point(host: &dyn Host, opts: &InstallOptions) -> Result<&'stat
     }
 }
 
+/// The scan can be minutes old: a driver installed since then may make the offer a downgrade.
+fn still_newer(offer: &Offer, before: &[Device]) -> bool {
+    !offer.device_ids.is_empty()
+        && offer.device_ids.iter().all(|id| {
+            before
+                .iter()
+                .find(|d| &d.instance_id == id)
+                .is_some_and(|d| decide(d, &offer.candidate).0 == Decision::Newer)
+        })
+}
+
 pub fn install(
     host: &dyn Host,
     offers: &[Offer],
@@ -57,6 +69,12 @@ pub fn install(
     opts: &InstallOptions,
 ) -> Result<InstallReport> {
     let before = host.inventory()?;
+    if let Some(stale) = offers.iter().find(|o| !still_newer(o, &before)) {
+        return Err(Error::Denied(format!(
+            "'{}' não é mais novo que o driver instalado; busque de novo",
+            stale.candidate.title
+        )));
+    }
     let target_ids: Vec<String> = offers
         .iter()
         .flat_map(|o| o.device_ids.iter().cloned())
