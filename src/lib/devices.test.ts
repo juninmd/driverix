@@ -3,7 +3,16 @@ import type { Device } from "./api";
 import { devicesToTsv, sortDevices } from "./devices";
 
 const dev = (instanceId: string, extra: Partial<Device> = {}): Device =>
-  ({ instanceId, name: instanceId, date: null, problemCode: 0, ...extra }) as Device;
+  ({
+    instanceId,
+    name: instanceId,
+    manufacturer: "",
+    vendor: "",
+    hint: "",
+    date: null,
+    problemCode: 0,
+    ...extra,
+  }) as Device;
 
 const ids = (list: Device[]) => list.map((d) => d.instanceId);
 
