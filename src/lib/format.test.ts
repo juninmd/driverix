@@ -35,6 +35,8 @@ describe("problemText", () => {
   test("names the common codes and falls back to the number", () => {
     expect(problemText(0)).toBe("OK");
     expect(problemText(28)).toBe("Sem driver instalado");
+    // 39 is the one that calls for a driver reinstall; without a name the user has no next step.
+    expect(problemText(39)).toBe("Driver corrompido ou ausente");
     expect(problemText(99)).toBe("Problema (código 99)");
   });
 });

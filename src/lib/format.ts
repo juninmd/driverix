@@ -23,7 +23,9 @@ const PROBLEMS: Record<number, string> = {
   22: "Desativado",
   28: "Sem driver instalado",
   31: "Não está funcionando direito",
+  39: "Driver corrompido ou ausente",
   43: "Parado pelo Windows por falha",
+  45: "Não conectado ao computador",
 };
 
 export function problemText(code: number): string {
