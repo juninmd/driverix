@@ -24,7 +24,7 @@ export default function App() {
   const elevated = status?.elevated ?? false;
   const [tab, setTab] = useState<Tab>("updates");
   const [installing, setInstalling] = useState<Offer[] | null>(null);
-  const [backupsKey, setBackupsKey] = State(0);
+  const [backupsKey, setBackupsKey] = useState(0);
   const [elevateError, setElevateError] = useState("");
 
   useEffect(() => {
@@ -148,7 +148,7 @@ export default function App() {
               offers={result.offers}
               installedVersion={installedVersion}
               busy={running || installing !== null}
-              elevated={status.elevated}
+              elevated={elevated}
               broken={broken}
               onInstall={setInstalling}
               onShowDevices={() => setTab("devices")}
