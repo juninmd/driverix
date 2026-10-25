@@ -42,20 +42,23 @@ pub fn backups_root() -> PathBuf {
 }
 
 /// Junctions and symlinks: a pre-planted one would redirect elevated writes elsewhere.
+/// Fails closed: a path that cannot be inspected is treated as a link, except when it does not exist.
 pub fn is_reparse_point(path: &std::path::Path) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
         const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
-        std::fs::symlink_metadata(path)
-            .map(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
-            .unwrap_or(false)
+        match std::fs::symlink_metadata(path) {
+            Ok(m) => m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0,
+            Err(e) => e.kind() != std::io::ErrorKind::NotFound,
+        }
     }
     #[cfg(not(windows))]
     {
-        std::fs::symlink_metadata(path)
-            .map(|m| m.file_type().is_symlink())
-            .unwrap_or(false)
+        match std::fs::symlink_metadata(path) {
+            Ok(m) => m.file_type().is_symlink(),
+            Err(e) => e.kind() != std::io::ErrorKind::NotFound,
+        }
     }
 }
 
@@ -116,5 +119,18 @@ mod tests {
     #[test]
     fn plain_directories_are_not_reparse_points() {
         assert!(!is_reparse_point(&std::env::temp_dir()));
+    }
+
+    #[test]
+    fn missing_paths_are_not_reparse_points() {
+        assert!(!is_reparse_point(
+            &std::env::temp_dir().join("driverix-no-such-dir-7f3a")
+        ));
+    }
+
+    #[test]
+    fn uninspectable_paths_fail_closed() {
+        // A NUL byte makes the metadata call fail with InvalidInput, not NotFound.
+        assert!(is_reparse_point(std::path::Path::new("bad\0name")));
     }
 }
