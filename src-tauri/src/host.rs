@@ -77,6 +77,8 @@ impl WindowsHost<'_> {
             )));
         }
         // Owner first: whoever created the folder keeps implicit rights until ownership moves.
+        // /T applies to everything already inside: a backup folder a standard user planted before
+        // the first admin run would otherwise keep its attacker-set ACL, and its owner can rewrite it.
         self.tool(
             "ajuste de dono da pasta de backup",
             "icacls.exe",
@@ -84,6 +86,7 @@ impl WindowsHost<'_> {
                 dir.as_os_str(),
                 "/setowner".as_ref(),
                 "*S-1-5-32-544".as_ref(),
+                "/T".as_ref(),
             ],
         )?;
         self.tool(
@@ -91,6 +94,7 @@ impl WindowsHost<'_> {
             "icacls.exe",
             &[
                 dir.as_os_str(),
+                "/T".as_ref(),
                 "/inheritance:r".as_ref(),
                 "/grant:r".as_ref(),
                 "*S-1-5-18:(OI)(CI)F".as_ref(),
