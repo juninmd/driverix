@@ -73,7 +73,12 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               </div>
               <div className="sub mono">{b.entries.map((e) => `${e.deviceName} ${e.oldVersion}`).join(" · ")}</div>
             </div>
-            <button type="button" disabled={!elevated || busy || b.entries.length === 0} onClick={() => setTarget(b)}>
+            <button
+              type="button"
+              title={elevated ? undefined : "Clique em “Reabrir como administrador” no topo para restaurar"}
+              disabled={!elevated || busy || b.entries.length === 0}
+              onClick={() => setTarget(b)}
+            >
               Restaurar
             </button>
           </li>

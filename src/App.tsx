@@ -53,7 +53,7 @@ export default function App() {
       <header>
         <div>
           <h1>Driverix</h1>
-          <p className="sub">Drivers do Windows Update, com backup e rollback</p>
+          <p className="sub">Drivers do Windows Update, com backup e restauração</p>
         </div>
         {running ? (
           <button type="button" onClick={cancel}>

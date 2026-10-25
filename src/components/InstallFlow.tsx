@@ -70,7 +70,9 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
         )}
         {failed.length > 0 && (
           <>
-            <p className="error">{failed.length} falharam:</p>
+            <p className="error">
+              {failed.length} {failed.length === 1 ? "falhou" : "falharam"}:
+            </p>
             <ul className="plain">
               {failed.map((o) => {
                 const id = o.updateId.toLowerCase();
@@ -85,7 +87,12 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
             </ul>
           </>
         )}
-        {!report.verified && <p className="error">Não foi possível verificar os dispositivos depois da instalação.</p>}
+        {!report.verified && (
+          <p className="error">
+            Não foi possível verificar os dispositivos após a instalação. Confira o Gerenciador de Dispositivos ou
+            busque de novo.
+          </p>
+        )}
         {report.problemDevices.length > 0 && (
           <p className="error">
             Com problema agora: {report.problemDevices.join(", ")}. Restaure o backup na aba Backups.
