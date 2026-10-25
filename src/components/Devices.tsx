@@ -1,10 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Device } from "../lib/api";
 import { DEVICE_SORTS, type DeviceSort, devicesToTsv, sortDevices } from "../lib/devices";
 import { formatDate, isOldDriver, problemText } from "../lib/format";
 
 export function Devices({ devices }: { devices: Device[] }) {
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" focuses the search, as in most table tools, unless the user is already typing somewhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea, [contenteditable='true']")) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [onlyOld, setOnlyOld] = useState(false);
   const [cls, setCls] = useState("");
@@ -30,6 +44,7 @@ export function Devices({ devices }: { devices: Device[] }) {
       <div className="filters">
         <input
           type="search"
+          ref={searchRef}
           placeholder="Buscar dispositivo, fabricante ou ID"
           aria-label="Buscar dispositivo"
           value={query}
