@@ -86,6 +86,11 @@ export default function App() {
           {state.message}
         </p>
       )}
+      {result?.updatesError && (
+        <p className="error" role="alert">
+          Não foi possível consultar o Windows Update: {result.updatesError}. Os dispositivos continuam listados.
+        </p>
+      )}
       {result && (
         <p className="summary">
           {devices.length} dispositivos · {newer} atualização(ões) disponível(is) · {broken} com problema
