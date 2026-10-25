@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Offer } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
+import { orderOffers } from "../lib/offers";
 
 interface Props {
   offers: Offer[];
@@ -11,7 +12,7 @@ interface Props {
 }
 
 export function Updates({ offers, installedVersion, busy, elevated, onInstall }: Props) {
-  const installable = useMemo(() => offers.filter((o) => o.decision === "newer"), [offers]);
+  const installable = useMemo(() => orderOffers(offers.filter((o) => o.decision === "newer")), [offers]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) =>
@@ -60,7 +61,9 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
                   />
                 </td>
                 <td>
-                  <div className="title">{c.title}</div>
+                  <div className="title" title={o.reason}>
+                    {c.title}
+                  </div>
                   <div className="sub">
                     <span className="chip">{c.class || "Driver"}</span>
                     {o.fixesProblem && <span className="chip warn">corrige dispositivo com problema</span>}
