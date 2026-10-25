@@ -1,6 +1,3 @@
-//! Offline hardware-ID database: turns `PCI\VEN_10DE&DEV_2684` into "NVIDIA" and a class hint.
-//! A device stuck at problem 28 often has no name at all, and its IDs are the only clue left.
-
 use crate::model::Device;
 
 /// PCI vendor IDs (pcisig.com registry) of the vendors that ship most Windows drivers.
@@ -54,13 +51,13 @@ const PCI_VENDORS: &[(&str, &str)] = &[
     ("9710", "MosChip"),
 ];
 
-/// USB vendor IDs (usb.org registry), peripherals and the Bluetooth/Wi-Fi dongles that need drivers.
+/// USB vendor IDs (usb.org registry), peripherals and the Bluetooth/Wi‑Fi dongles that need drivers.
 const USB_VENDORS: &[(&str, &str)] = &[
     ("03F0", "HP"),
     ("045E", "Microsoft"),
     ("046D", "Logitech"),
     ("0489", "Foxconn / Hon Hai"),
-    ("04CA", "Lite-On"),
+    ("04CA", "Lite‑On"),
     ("04D9", "Holtek"),
     ("04F2", "Chicony"),
     ("04F3", "Elan"),
@@ -89,7 +86,7 @@ const USB_VENDORS: &[(&str, &str)] = &[
     ("1B1C", "Corsair"),
     ("1BCF", "Sunplus"),
     ("2109", "VIA Labs"),
-    ("2357", "TP-Link"),
+    ("2357", "TP‑Link"),
     ("258A", "SinoWealth"),
     ("2717", "Xiaomi"),
     ("27C6", "Goodix"),
@@ -109,10 +106,10 @@ const USB_VENDORS: &[(&str, &str)] = &[
     ("0E0F", "VMware"),
 ];
 
-/// Base class of `PCI\CC_BBSS..` (PCI-SIG class codes).
+/// Base class of `PCI\CC_BBSS..` (PCI‑SIG class codes).
 fn pci_class(code: &str) -> Option<&'static str> {
     let code = code.to_ascii_uppercase();
-    // A 4-digit code is exact; a 2-digit code (like `PCI\CC_03`) must still reach the base-class table.
+    // A 4‑digit code is exact; a 2‑digit code (like `PCI\CC_03`) must still reach the base‑class table.
     let exact = match code.get(..4) {
         Some("0101") => Some("Controlador IDE"),
         Some("0106") => Some("Controlador SATA"),
@@ -182,7 +179,7 @@ fn class_of(ids: &[String]) -> Option<&'static str> {
 }
 
 /// Reads the first PCI or USB ID found in the hardware IDs, then the compatible ones, because
-/// class-only matches (`PCI\CC_0300`) carry no vendor.
+/// class‑only matches (`PCI\CC_0300`) carry no vendor.
 pub fn identify(hardware: &[String], compatible: &[String]) -> Option<Identity> {
     let class = class_of(hardware).or_else(|| class_of(compatible));
     for id in hardware.iter().chain(compatible) {
@@ -277,7 +274,7 @@ mod tests {
     fn falls_back_to_the_base_class() {
         assert_eq!(pci_class("0C0A00"), Some("Barramento serial"));
         assert_eq!(pci_class("FF00"), None);
-        // Compatible IDs carry only the 2-digit base class.
+        // Compatible IDs carry only the 2‑digit base class.
         assert_eq!(pci_class("03"), Some("Controlador de vídeo"));
     }
 
