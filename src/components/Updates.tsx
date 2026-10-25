@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Offer } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
 
@@ -23,11 +23,11 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
   const allOn = installable.length > 0 && installable.every((o) => picked.has(o.candidate.updateId));
   const toggleAll = () => setPicked(allOn ? new Set() : new Set(installable.map((o) => o.candidate.updateId)));
   const chosen = installable.filter((o) => picked.has(o.candidate.updateId));
-  // The DOM has no attribute for "some selected", so it is set on the node.
-  const selectAll = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (selectAll.current) selectAll.current.indeterminate = picked.size > 0 && !allOn;
-  }, [picked, allOn, installable.length]);
+  // The DOM has no attribute for "some selected", so it is set on the node. A callback ref runs when
+  // the table mounts again after a re-scan, which an effect keyed on the selection would miss.
+  const setSelectAll = (el: HTMLInputElement | null) => {
+    if (el) el.indeterminate = picked.size > 0 && !allOn;
+  };
 
   if (installable.length === 0) {
     return (
@@ -44,7 +44,7 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
           <tr>
             <th scope="col" className="check">
               <input
-                ref={selectAll}
+                ref={setSelectAll}
                 type="checkbox"
                 checked={allOn}
                 onChange={toggleAll}
