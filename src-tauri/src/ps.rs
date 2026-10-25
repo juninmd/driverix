@@ -5,6 +5,7 @@ use crate::error::{Error, Result};
 use std::io::Read;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 #[cfg(windows)]
@@ -80,9 +81,17 @@ pub fn run_process(
     };
     Ok(Finished {
         code: status.code(),
-        stdout: out.join().unwrap_or_default(),
-        stderr: err.join().unwrap_or_default(),
+        stdout: collect(out, what)?,
+        stderr: collect(err, what)?,
     })
+}
+
+/// How long to wait for a pipe to close after the child exits; a grandchild can keep it open.
+const DRAIN_GRACE: Duration = Duration::from_secs(5);
+
+fn collect(rx: Receiver<String>, what: &'static str) -> Result<String> {
+    rx.recv_timeout(DRAIN_GRACE)
+        .map_err(|_| Error::Timeout(what))
 }
 
 pub fn run_script(
@@ -118,16 +127,19 @@ pub fn run_script(
     }
 }
 
-fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> std::thread::JoinHandle<String> {
+fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> Receiver<String> {
+    let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let mut buf = Vec::new();
         if let Some(mut p) = pipe {
             let _ = p.read_to_end(&mut buf);
         }
-        String::from_utf8_lossy(&buf)
+        let text = String::from_utf8_lossy(&buf)
             .trim_start_matches('\u{feff}')
-            .to_string()
-    })
+            .to_string();
+        let _ = tx.send(text);
+    });
+    rx
 }
 
 pub mod scripts {
@@ -142,6 +154,20 @@ pub mod scripts {
 #[cfg(test)]
 mod tests {
     use super::scripts::*;
+    use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn a_grandchild_holding_the_pipe_cannot_block_past_the_deadline() {
+        // `start /B` leaves a process that inherits our stdout, so the pipe stays open after cmd exits.
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", "start /B ping -n 20 127.0.0.1"]);
+        let cancel = AtomicBool::new(false);
+        let err = run_process("teste", cmd, Duration::from_secs(30), &cancel)
+            .err()
+            .expect("a pipe held open past the deadline must fail");
+        assert!(matches!(err, Error::Timeout("teste")), "{err:?}");
+    }
 
     #[test]
     fn encoded_command_is_base64_of_utf16le() {
