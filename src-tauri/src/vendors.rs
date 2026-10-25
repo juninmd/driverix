@@ -112,25 +112,26 @@ const USB_VENDORS: &[(&str, &str)] = &[
 /// Base class of `PCI\CC_BBSS..` (PCI-SIG class codes).
 fn pci_class(code: &str) -> Option<&'static str> {
     let code = code.to_ascii_uppercase();
-    let exact = match code.get(..4)? {
-        "0101" => "Controlador IDE",
-        "0106" => "Controlador SATA",
-        "0108" => "Controlador NVMe",
-        "0200" => "Placa de rede Ethernet",
-        "0280" => "Placa de rede sem fio",
-        "0300" => "Controlador de vídeo",
-        "0302" => "Controlador 3D",
-        "0401" => "Controlador de áudio",
-        "0403" => "Áudio de alta definição",
-        "0C03" => "Controlador USB",
-        "0C05" => "Controlador SMBus",
-        "0D11" => "Controlador Bluetooth",
-        "0D40" => "Controlador sem fio",
-        "0604" => "Ponte PCI",
-        _ => "",
+    // A 4-digit code is exact; a 2-digit code (like `PCI\CC_03`) must still reach the base-class table.
+    let exact = match code.get(..4) {
+        Some("0101") => Some("Controlador IDE"),
+        Some("0106") => Some("Controlador SATA"),
+        Some("0108") => Some("Controlador NVMe"),
+        Some("0200") => Some("Placa de rede Ethernet"),
+        Some("0280") => Some("Placa de rede sem fio"),
+        Some("0300") => Some("Controlador de vídeo"),
+        Some("0302") => Some("Controlador 3D"),
+        Some("0401") => Some("Controlador de áudio"),
+        Some("0403") => Some("Áudio de alta definição"),
+        Some("0C03") => Some("Controlador USB"),
+        Some("0C05") => Some("Controlador SMBus"),
+        Some("0D11") => Some("Controlador Bluetooth"),
+        Some("0D40") => Some("Controlador sem fio"),
+        Some("0604") => Some("Ponte PCI"),
+        _ => None,
     };
-    if !exact.is_empty() {
-        return Some(exact);
+    if exact.is_some() {
+        return exact;
     }
     Some(match code.get(..2)? {
         "01" => "Controlador de armazenamento",
@@ -276,6 +277,8 @@ mod tests {
     fn falls_back_to_the_base_class() {
         assert_eq!(pci_class("0C0A00"), Some("Barramento serial"));
         assert_eq!(pci_class("FF00"), None);
+        // Compatible IDs carry only the 2-digit base class.
+        assert_eq!(pci_class("03"), Some("Controlador de vídeo"));
     }
 
     #[test]
