@@ -91,7 +91,9 @@ $battery = $null
 $b = Try-Get { Get-CimInstance Win32_Battery | Select-Object -First 1 }
 if ($b) {
   $battery = [pscustomobject]@{
-    name = (S $b.Name); chargePercent = [int](N $b.EstimatedChargeRemaining); statusCode = [int](N $b.BatteryStatus)
+    name = (S $b.Name); statusCode = [int](N $b.BatteryStatus)
+    # Null means the battery does not report a charge; 0 would read as an empty battery.
+    chargePercent = if ($null -eq $b.EstimatedChargeRemaining) { $null } else { [int]$b.EstimatedChargeRemaining }
   }
 }
 
