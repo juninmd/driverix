@@ -84,31 +84,13 @@ pub fn run_process(
     let deadline = Instant::now() + DRAIN_GRACE;
     Ok(Finished {
         code: status.code(),
-        stdout: collect(out, deadline),
-        stderr: collect(err, deadline),
+        stdout: collect(out, deadline, what)?,
+        stderr: collect(err, deadline, what)?,
     })
 }
 
 /// How long to wait for a pipe to close after the child exits; a grandchild can keep it open.
 const DRAIN_GRACE: Duration = Duration::from_secs(5);
-
-/// A pipe being read on its own thread: `buf` grows as bytes arrive, `done` fires at EOF.
-struct Drain {
-    buf: Arc<Mutex<Vec<u8>>>,
-    done: Receiver<()>,
-}
-
-/// Returns what the child wrote. Once the child has exited, everything it wrote is already in
-/// the pipe, so a pipe still held open by a grandchild only costs the wait, not the output.
-fn collect(d: Drain, deadline: Instant) -> String {
-    let _ = d
-        .done
-        .recv_timeout(deadline.saturating_duration_since(Instant::now()));
-    let bytes = d.buf.lock().map(|b| b.clone()).unwrap_or_default();
-    String::from_utf8_lossy(&bytes)
-        .trim_start_matches('\u{feff}')
-        .to_string()
-}
 
 pub fn run_script(
     what: &'static str,
@@ -143,10 +125,27 @@ pub fn run_script(
     }
 }
 
+/// Largest output a child may write. Scripts print a few hundred KB at most; a bigger stream is a
+/// fault, and reading it all would hold it in memory before the JSON parse fails on the truncation.
+const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+
+/// A pipe being read on its own thread: `buf` grows as bytes arrive, `done` fires at EOF, and
+/// `overflow` is set when the stream passed the size limit (the reader then stops).
+struct Drain {
+    buf: Arc<Mutex<Vec<u8>>>,
+    done: Receiver<()>,
+    overflow: Arc<AtomicBool>,
+}
+
 fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> Drain {
+    spawn_reader(pipe, MAX_OUTPUT)
+}
+
+fn spawn_reader<R: Read + Send + 'static>(pipe: Option<R>, limit: usize) -> Drain {
     let buf = Arc::new(Mutex::new(Vec::new()));
+    let overflow = Arc::new(AtomicBool::new(false));
     let (tx, done) = mpsc::channel();
-    let sink = Arc::clone(&buf);
+    let (sink, flag) = (Arc::clone(&buf), Arc::clone(&overflow));
     std::thread::spawn(move || {
         if let Some(mut p) = pipe {
             let mut chunk = [0u8; 8192];
@@ -155,13 +154,40 @@ fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> Drain {
                     break;
                 }
                 if let Ok(mut b) = sink.lock() {
+                    if b.len() + n > limit {
+                        flag.store(true, Ordering::Relaxed);
+                        break;
+                    }
                     b.extend_from_slice(&chunk[..n]);
                 }
             }
         }
         let _ = tx.send(());
     });
-    Drain { buf, done }
+    Drain {
+        buf,
+        done,
+        overflow,
+    }
+}
+
+/// Returns what the child wrote. Once the child has exited, everything it wrote is already in
+/// the pipe, so a pipe still held open by a grandchild only costs the wait, not the output.
+/// An overflowing stream is an error, never a silently cut-off result.
+fn collect(d: Drain, deadline: Instant, what: &'static str) -> Result<String> {
+    let _ = d
+        .done
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()));
+    if d.overflow.load(Ordering::Relaxed) {
+        return Err(Error::Command {
+            what,
+            detail: format!("saída maior que {} MiB", MAX_OUTPUT >> 20),
+        });
+    }
+    let bytes = d.buf.lock().map(|b| b.clone()).unwrap_or_default();
+    Ok(String::from_utf8_lossy(&bytes)
+        .trim_start_matches('\u{feff}')
+        .to_string())
 }
 
 pub mod scripts {
@@ -234,5 +260,22 @@ mod tests {
                 "dynamic evaluation in script"
             );
         }
+    }
+
+    #[test]
+    fn output_at_the_limit_is_kept_whole() {
+        let d = spawn_reader(Some(std::io::Cursor::new(b"0123456789".to_vec())), 10);
+        let out = collect(d, Instant::now() + Duration::from_secs(5), "teste").unwrap();
+        assert_eq!(out, "0123456789");
+    }
+
+    #[test]
+    fn output_over_the_limit_is_an_error_not_a_truncated_result() {
+        let d = spawn_reader(Some(std::io::Cursor::new(vec![b'x'; 100])), 10);
+        let err = collect(d, Instant::now() + Duration::from_secs(5), "teste").unwrap_err();
+        assert!(
+            matches!(err, Error::Command { what: "teste", .. }),
+            "{err:?}"
+        );
     }
 }
