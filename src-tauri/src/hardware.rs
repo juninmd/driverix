@@ -315,6 +315,10 @@ fn health_text(h: &str) -> String {
         "Healthy" | "OK" => "Saudável".into(),
         "Warning" => "Atenção".into(),
         "Unhealthy" => "Com falha".into(),
+        // Win32_DiskDrive.Status (the fallback when Get-PhysicalDisk fails) uses these instead.
+        "Degraded" | "Pred Fail" | "Stressed" => "Atenção".into(),
+        "Error" | "NonRecover" => "Com falha".into(),
+        "Unknown" => "Desconhecido".into(),
         other => or_dash(other),
     }
 }
@@ -639,6 +643,14 @@ pub fn render_report(sections: &[Section]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disk_status_words_from_the_cim_fallback_are_translated() {
+        // A failing disk must not show "Pred Fail" or "NonRecover" on the pt-BR screen.
+        assert_eq!(health_text("Pred Fail"), "Atenção");
+        assert_eq!(health_text("NonRecover"), "Com falha");
+        assert_eq!(health_text("Unknown"), "Desconhecido");
+    }
 
     const SAMPLE: &str = r#"{
       "system":{"manufacturer":"ASUS","model":"ROG Strix","family":"ROG"},
