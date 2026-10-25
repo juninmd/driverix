@@ -18,14 +18,17 @@ const PHASE_TEXT = {
 export default function App() {
   const { state, last, start, cancel } = useScan();
   const hardware = useHardware();
-  const [status, setStatus] = useState<Status>({ elevated: false, backupsDir: "" });
+  // Null until the backend answers, so the admin banner does not flash on an elevated launch.
+  const [status, setStatus] = useState<Status | null>(null);
+  const [statusError, setStatusError] = useState("");
+  const elevated = status?.elevated ?? false;
   const [tab, setTab] = useState<Tab>("updates");
   const [installing, setInstalling] = useState<Offer[] | null>(null);
   const [backupsKey, setBackupsKey] = useState(0);
   const [elevateError, setElevateError] = useState("");
 
   useEffect(() => {
-    api.status().then(setStatus);
+    api.status().then(setStatus, (e) => setStatusError(String(e)));
   }, []);
 
   const result = last?.result ?? null;
@@ -66,7 +69,12 @@ export default function App() {
         )}
       </header>
 
-      {!status.elevated && (
+      {statusError && (
+        <p className="error" role="alert">
+          Não foi possível ler o estado do Driverix: {statusError}
+        </p>
+      )}
+      {status && !status.elevated && (
         <div className="banner" role="status">
           <span>Você pode buscar sem privilégios, mas instalar e restaurar exigem administrador.</span>
           <button type="button" onClick={elevate}>
@@ -145,7 +153,7 @@ export default function App() {
               offers={result.offers}
               installedVersion={installedVersion}
               busy={running || installing !== null}
-              elevated={status.elevated}
+              elevated={elevated}
               broken={broken}
               onInstall={setInstalling}
               onShowDevices={() => setTab("devices")}
@@ -156,7 +164,7 @@ export default function App() {
         {tab === "devices" &&
           (result ? <Devices devices={devices} /> : <p className="empty">Faça uma busca para listar o hardware.</p>)}
         {tab === "hardware" && <Hardware state={hardware.state} onLoad={hardware.load} />}
-        {tab === "backups" && <Backups elevated={status.elevated} refreshKey={backupsKey} />}
+        {tab === "backups" && <Backups elevated={elevated} refreshKey={backupsKey} />}
       </main>
 
       {installing && (
