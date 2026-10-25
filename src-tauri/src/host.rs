@@ -70,13 +70,10 @@ impl WindowsHost<'_> {
     }
 
     fn lock_down(&self, dir: &Path) -> Result<()> {
-        if sys::is_reparse_point(dir) {
-            return Err(Error::Denied(format!(
-                "{} é um link/junção; recusando usar como pasta de backup",
-                dir.display()
-            )));
-        }
+        refuse_reparse(dir)?;
         // Owner first: whoever created the folder keeps implicit rights until ownership moves.
+        // /T applies to everything already inside: a backup folder a standard user planted before
+        // the first admin run would otherwise keep its attacker-set ACL, and its owner can rewrite it.
         self.tool(
             "ajuste de dono da pasta de backup",
             "icacls.exe",
@@ -84,6 +81,7 @@ impl WindowsHost<'_> {
                 dir.as_os_str(),
                 "/setowner".as_ref(),
                 "*S-1-5-32-544".as_ref(),
+                "/T".as_ref(),
             ],
         )?;
         self.tool(
@@ -91,6 +89,7 @@ impl WindowsHost<'_> {
             "icacls.exe",
             &[
                 dir.as_os_str(),
+                "/T".as_ref(),
                 "/inheritance:r".as_ref(),
                 "/grant:r".as_ref(),
                 "*S-1-5-18:(OI)(CI)F".as_ref(),
@@ -132,6 +131,11 @@ impl Host for WindowsHost<'_> {
     }
 
     fn secure_dir(&self, dir: &Path) -> Result<()> {
+        // Check before creating: create_dir_all would follow a planted junction and make folders through it.
+        refuse_reparse(dir)?;
+        if let Some(parent) = dir.parent() {
+            refuse_reparse(parent)?;
+        }
         std::fs::create_dir_all(dir)?;
         if let Some(parent) = dir.parent() {
             self.lock_down(parent)?;
@@ -184,6 +188,16 @@ impl Host for WindowsHost<'_> {
             ],
         )
     }
+}
+
+fn refuse_reparse(dir: &Path) -> Result<()> {
+    if sys::is_reparse_point(dir) {
+        return Err(Error::Denied(format!(
+            "{} é um link/junção ou não pôde ser verificado; recusando usar como pasta de backup",
+            dir.display()
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

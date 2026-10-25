@@ -208,7 +208,13 @@ pub async fn relaunch_elevated(app: AppHandle) -> Result<(), String> {
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(msg)?;
+    .map_err(|e| match e {
+        // A UAC refusal arrives as English PowerShell stderr; the user needs the next step, not that text.
+        Error::Command { .. } => {
+            "Não foi possível abrir como administrador. Confirme o aviso do Windows (UAC) e tente de novo.".to_string()
+        }
+        other => msg(other),
+    })?;
     app.exit(0);
     Ok(())
 }

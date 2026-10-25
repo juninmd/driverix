@@ -49,6 +49,8 @@ export interface Offer {
 export interface ScanResult {
   devices: Device[];
   offers: Offer[];
+  /** Windows Update failure; the devices are still valid when this is set. */
+  updatesError: string | null;
 }
 
 export interface Status {
@@ -71,7 +73,11 @@ export interface InstallReport {
   outcomes: UpdateOutcome[];
   rebootRequired: boolean;
   problemDevices: string[];
+  /** Devices still on an older driver than the one offered, though Windows Update reported success. */
+  staleDevices: string[];
   verified: boolean;
+  /** Set when Windows Update itself failed; the backup is still there. */
+  installError: string | null;
 }
 
 export interface BackupEntry {

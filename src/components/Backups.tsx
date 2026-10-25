@@ -20,7 +20,10 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
       .finally(() => setLoaded(true));
   }, [refreshKey]);
 
-  const close = useCallback(() => setTarget(null), []);
+  // Closing mid-rollback would hide a half-applied change; the dialog stays until the run ends.
+  const close = useCallback(() => {
+    if (!busy) setTarget(null);
+  }, [busy]);
 
   // Restoring re-installs drivers as admin; a second click must not start another rollback.
   const run = async () => {
@@ -57,9 +60,12 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
       )}
       {result && (
         <p className={result.errors.length ? "error" : "okbox"} role="status">
-          {result.restored} driver(s) restaurado(s).{result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}`}
+          {result.restored} driver(s) restaurado(s).
+          {result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}.`}
+          {result.restored > 0 && " A lista de atualizações ainda mostra o estado anterior: busque de novo."}
         </p>
       )}
+      <p className="summary">{list.length} backup(s), do mais recente ao mais antigo.</p>
       <ul className="cards">
         {list.map((b) => (
           <li key={b.id}>
@@ -71,10 +77,19 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               <div className="sub mono">{b.entries.map((e) => `${e.deviceName} ${e.oldVersion}`).join(" · ")}</div>
             </div>
             <div className="row-actions">
-              <button type="button" disabled={!elevated || busy || b.entries.length === 0} onClick={() => setTarget(b)}>
+              <button
+                type="button"
+                title={elevated ? undefined : "Clique em “Reabrir como administrador” no topo para restaurar"}
+                disabled={!elevated || busy || b.entries.length === 0}
+                onClick={() => setTarget(b)}
+              >
                 Restaurar
               </button>
-              <button type="button" disabled={!elevated || busy} onClick={() => setDoomed(b)}>
+              <button
+                type="button"
+                disabled={!elevated || busy}
+                onClick={() => setDoomed(b)}
+              >
                 Apagar
               </button>
             </div>
@@ -121,7 +136,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
           onClose={close}
           actions={
             <>
-              <button type="button" onClick={close}>
+              <button type="button" onClick={close} disabled={busy}>
                 Cancelar
               </button>
               <button type="button" className="primary" disabled={busy} onClick={run}>
@@ -134,6 +149,11 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
             Remove os pacotes instalados na atualização de {formatUnix(target.createdUnix)} e reinstala os anteriores a
             partir do backup. Dispositivos podem reiniciar por alguns segundos.
           </p>
+          {busy && (
+            <p role="status" aria-live="polite">
+              Restaurando… não feche o Driverix.
+            </p>
+          )}
         </Dialog>
       )}
     </>

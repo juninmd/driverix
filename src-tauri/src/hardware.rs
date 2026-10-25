@@ -144,7 +144,8 @@ pub struct Nic {
 #[serde(rename_all = "camelCase", default)]
 pub struct Battery {
     pub name: String,
-    pub charge_percent: u32,
+    /// `None` when the battery does not report a charge.
+    pub charge_percent: Option<u32>,
     pub status_code: u32,
 }
 
@@ -330,13 +331,34 @@ fn battery_status(code: u32) -> &'static str {
     }
 }
 
+/// The first three octets identify the manufacturer; the rest identify the device and must not
+/// be pasted with the report.
+fn mask_mac(mac: &str) -> String {
+    let octets: Vec<String> = mac
+        .split([':', '-'])
+        .filter(|o| !o.is_empty())
+        .take(3)
+        .map(|o| o.to_ascii_uppercase())
+        .collect();
+    if octets.len() < 3 {
+        return "—".into();
+    }
+    format!("{}:••:••:••", octets.join(":"))
+}
+
 fn fmt_link_speed(bps: u64) -> String {
     // Disconnected adapters report u64::MAX / i64::MAX instead of a speed.
     if bps == 0 || bps >= 1_000_000_000_000 {
         return "—".into();
     }
     if bps >= 1_000_000_000 {
-        format!("{} Gbps", bps / 1_000_000_000)
+        // Whole tenths of a Gbps, so a 2.5 GbE link is not shown as 2.
+        let tenths = (bps + 50_000_000) / 100_000_000;
+        if tenths.is_multiple_of(10) {
+            format!("{} Gbps", tenths / 10)
+        } else {
+            format!("{}.{} Gbps", tenths / 10, tenths % 10)
+        }
     } else {
         format!("{} Mbps", bps / 1_000_000)
     }
@@ -532,7 +554,7 @@ pub fn sections(info: &HardwareInfo) -> Vec<Section> {
     out.push(section("network", "Rede", |b| {
         for n in &info.network {
             b.heading(or_dash(&n.name));
-            b.row("Endereço MAC", or_dash(&n.mac));
+            b.row("Endereço MAC", mask_mac(&n.mac));
             b.row(
                 "Estado",
                 if n.connected {
@@ -548,11 +570,10 @@ pub fn sections(info: &HardwareInfo) -> Vec<Section> {
     if let Some(bat) = &info.battery {
         out.push(section("battery", "Bateria", |b| {
             b.row("Modelo", or_dash(&bat.name));
-            b.meter(
-                "Carga",
-                format!("{}%", bat.charge_percent),
-                Some(bat.charge_percent.min(100) as u8),
-            );
+            match bat.charge_percent {
+                Some(p) => b.meter("Carga", format!("{p}%"), Some(p.min(100) as u8)),
+                None => b.row("Carga", "desconhecida"),
+            }
             b.row("Estado", battery_status(bat.status_code));
         }));
     }
@@ -735,7 +756,22 @@ mod tests {
             .filter(|r| r.label == "Velocidade")
             .map(|r| r.value.as_str())
             .collect();
-        assert_eq!(speeds, ["2 Gbps", "—"]);
+        assert_eq!(speeds, ["2.5 Gbps", "—"]);
+    }
+
+    #[test]
+    fn link_speed_keeps_its_fraction() {
+        assert_eq!(fmt_link_speed(1_000_000_000), "1 Gbps");
+        assert_eq!(fmt_link_speed(2_500_000_000), "2.5 Gbps");
+        assert_eq!(fmt_link_speed(10_000_000_000), "10 Gbps");
+        assert_eq!(fmt_link_speed(100_000_000), "100 Mbps");
+    }
+
+    #[test]
+    fn a_mac_shows_only_its_manufacturer_prefix() {
+        assert_eq!(mask_mac("AA:BB:CC:DD:EE:FF"), "AA:BB:CC:••:••:••");
+        assert_eq!(mask_mac("aa-bb-cc-dd-ee-ff"), "AA:BB:CC:••:••:••");
+        assert_eq!(mask_mac(""), "—");
     }
 
     #[test]
@@ -744,11 +780,23 @@ mod tests {
         let mut i = sample();
         i.battery = Some(Battery {
             name: "Main".into(),
-            charge_percent: 80,
+            charge_percent: Some(80),
             status_code: 6,
         });
         let s = sections(&i);
         assert_eq!(value(find(&s, "battery"), "Estado"), "Carregando");
+    }
+
+    #[test]
+    fn an_unreported_charge_is_not_shown_as_zero() {
+        let mut i = sample();
+        i.battery = Some(Battery {
+            name: "Main".into(),
+            charge_percent: None,
+            status_code: 2,
+        });
+        let s = sections(&i);
+        assert_eq!(value(find(&s, "battery"), "Carga"), "desconhecida");
     }
 
     #[test]
