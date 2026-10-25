@@ -191,6 +191,15 @@ main {
   gap: 0.75rem;
 }
 
+/* Read by screen readers only; keeps a table's name without a visible heading. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 .data-table {
   width: 100%;
   border-collapse: collapse;
