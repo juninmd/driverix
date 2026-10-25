@@ -104,6 +104,7 @@ function Props({ section }: { section: HwSection }) {
                       role="progressbar"
                       aria-label={r.label}
                       aria-valuenow={r.meter}
+                      aria-valuetext={`${r.meter}%${r.meter >= 90 ? ", alto" : ""}`}
                       aria-valuemin={0}
                       aria-valuemax={100}
                     >

@@ -84,7 +84,7 @@ export function Devices({ devices }: { devices: Device[] }) {
                 {formatDate(d.date)}
                 {isOldDriver(d.date, d.provider) && (
                   <span className="chip warn" title="Driver de terceiros com 3 anos ou mais">
-                    antigo
+                    antigo (3+ anos)
                   </span>
                 )}
               </td>
