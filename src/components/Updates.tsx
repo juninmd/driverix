@@ -27,7 +27,7 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
   const selectAll = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (selectAll.current) selectAll.current.indeterminate = picked.size > 0 && !allOn;
-  }, [picked, allOn]);
+  }, [picked, allOn, installable.length]);
 
   if (installable.length === 0) {
     return (
