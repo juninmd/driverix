@@ -24,3 +24,12 @@ export function sortDevices(devices: Device[], sort: DeviceSort): Device[] {
       return copy;
   }
 }
+
+/** Tab-separated rows with a header, for pasting into a spreadsheet or a bug report. */
+export function devicesToTsv(devices: Device[]): string {
+  const clean = (s: string) => s.replace(/[\t\r\n]+/g, " ").trim();
+  const rows = devices.map((d) =>
+    [d.name || d.instanceId, d.class, d.version, d.instanceId].map((v) => clean(v || "—")).join("\t"),
+  );
+  return ["Dispositivo\tClasse\tVersão\tID", ...rows].join("\n");
+}

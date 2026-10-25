@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Device } from "../lib/api";
-import { DEVICE_SORTS, type DeviceSort, sortDevices } from "../lib/devices";
+import { DEVICE_SORTS, type DeviceSort, devicesToTsv, sortDevices } from "../lib/devices";
 import { formatDate, isOldDriver, problemText } from "../lib/format";
 
 export function Devices({ devices }: { devices: Device[] }) {
@@ -9,6 +9,7 @@ export function Devices({ devices }: { devices: Device[] }) {
   const [onlyOld, setOnlyOld] = useState(false);
   const [cls, setCls] = useState("");
   const [sort, setSort] = useState<DeviceSort>("inventory");
+  const [copied, setCopied] = useState<"" | "ok" | "fail">("");
 
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
   const shown = useMemo(() => {
@@ -58,6 +59,26 @@ export function Devices({ devices }: { devices: Device[] }) {
         <span className="count">
           {shown.length} de {devices.length}
         </span>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(devicesToTsv(shown));
+              setCopied("ok");
+            } catch {
+              setCopied("fail");
+            }
+            setTimeout(() => setCopied(""), 2500);
+          }}
+          disabled={shown.length === 0}
+        >
+          Copiar lista
+        </button>
+        {copied && (
+          <span role="status" className={copied === "ok" ? "okbox" : "error"}>
+            {copied === "ok" ? "Lista copiada (TSV)." : "Não foi possível copiar."}
+          </span>
+        )}
       </div>
       <table className="data-table">
         <thead>
