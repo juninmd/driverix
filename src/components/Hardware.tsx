@@ -19,7 +19,7 @@ export function Hardware({ state, onLoad }: Props) {
   // A second click must restart the message, not let the first click's timer clear it early.
   useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
 
-  if (state.kind === "idle" || state.kind === "loading") {
+  if (state.kind === "idle" || (state.kind === "loading" && !state.previous)) {
     return (
       <p className="progress" role="status">
         Lendo o hardware…
@@ -37,7 +37,11 @@ export function Hardware({ state, onLoad }: Props) {
     );
   }
 
-  const { sections, report } = state.view;
+  // A refresh keeps the previous view on screen, marked as loading, instead of blanking the panel.
+  const view = state.kind === "done" ? state.view : state.previous;
+  if (!view) return null;
+  const { sections, report } = view;
+  const refreshing = state.kind === "loading";
   const current = sections.find((s) => s.id === selected) ?? sections[0];
 
   const copy = async () => {
@@ -66,8 +70,8 @@ export function Hardware({ state, onLoad }: Props) {
           </button>
         ))}
         <div className="hw-actions">
-          <button type="button" onClick={onLoad}>
-            Atualizar
+          <button type="button" onClick={onLoad} disabled={refreshing}>
+            {refreshing ? "Atualizando…" : "Atualizar"}
           </button>
           <button type="button" onClick={copy}>
             Copiar relatório

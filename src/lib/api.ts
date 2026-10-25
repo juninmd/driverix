@@ -131,6 +131,7 @@ export const api = {
     invoke<InstallReport>("install_updates", { updateIds, allowNoRestorePoint }),
   backups: () => invoke<Backup[]>("list_backups"),
   rollback: (id: string) => invoke<RollbackReport>("rollback_backup", { id }),
+  deleteBackup: (id: string) => invoke<void>("delete_backup", { id }),
   relaunchElevated: () => invoke<void>("relaunch_elevated"),
   onScanPhase: (cb: (p: ScanPhase) => void) => listen<ScanPhase>("scan-phase", (e) => cb(e.payload)),
 };
