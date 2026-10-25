@@ -6,6 +6,7 @@ use std::io::Read;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 #[cfg(windows)]
@@ -79,19 +80,34 @@ pub fn run_process(
         }
         std::thread::sleep(Duration::from_millis(100));
     };
+    // One deadline for both pipes: a grandchild usually holds stdout and stderr together.
+    let deadline = Instant::now() + DRAIN_GRACE;
     Ok(Finished {
         code: status.code(),
-        stdout: collect(out, what)?,
-        stderr: collect(err, what)?,
+        stdout: collect(out, deadline),
+        stderr: collect(err, deadline),
     })
 }
 
 /// How long to wait for a pipe to close after the child exits; a grandchild can keep it open.
 const DRAIN_GRACE: Duration = Duration::from_secs(5);
 
-fn collect(rx: Receiver<String>, what: &'static str) -> Result<String> {
-    rx.recv_timeout(DRAIN_GRACE)
-        .map_err(|_| Error::Timeout(what))
+/// A pipe being read on its own thread: `buf` grows as bytes arrive, `done` fires at EOF.
+struct Drain {
+    buf: Arc<Mutex<Vec<u8>>>,
+    done: Receiver<()>,
+}
+
+/// Returns what the child wrote. Once the child has exited, everything it wrote is already in
+/// the pipe, so a pipe still held open by a grandchild only costs the wait, not the output.
+fn collect(d: Drain, deadline: Instant) -> String {
+    let _ = d
+        .done
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()));
+    let bytes = d.buf.lock().map(|b| b.clone()).unwrap_or_default();
+    String::from_utf8_lossy(&bytes)
+        .trim_start_matches('\u{feff}')
+        .to_string()
 }
 
 pub fn run_script(
@@ -127,19 +143,25 @@ pub fn run_script(
     }
 }
 
-fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> Receiver<String> {
-    let (tx, rx) = mpsc::channel();
+fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> Drain {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let (tx, done) = mpsc::channel();
+    let sink = Arc::clone(&buf);
     std::thread::spawn(move || {
-        let mut buf = Vec::new();
         if let Some(mut p) = pipe {
-            let _ = p.read_to_end(&mut buf);
+            let mut chunk = [0u8; 8192];
+            while let Ok(n) = p.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                if let Ok(mut b) = sink.lock() {
+                    b.extend_from_slice(&chunk[..n]);
+                }
+            }
         }
-        let text = String::from_utf8_lossy(&buf)
-            .trim_start_matches('\u{feff}')
-            .to_string();
-        let _ = tx.send(text);
+        let _ = tx.send(());
     });
-    rx
+    Drain { buf, done }
 }
 
 pub mod scripts {
@@ -163,10 +185,16 @@ mod tests {
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", "start /B ping -n 20 127.0.0.1"]);
         let cancel = AtomicBool::new(false);
-        let err = run_process("teste", cmd, Duration::from_secs(30), &cancel)
-            .err()
-            .expect("a pipe held open past the deadline must fail");
-        assert!(matches!(err, Error::Timeout("teste")), "{err:?}");
+        let started = Instant::now();
+        let done = run_process("teste", cmd, Duration::from_secs(30), &cancel)
+            .expect("the child exited cleanly, so its result must not turn into a failure");
+        assert_eq!(done.code, Some(0));
+        // ping runs for ~20 s; the call must return after the drain grace, not wait for it.
+        assert!(
+            started.elapsed() < Duration::from_secs(15),
+            "{:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
