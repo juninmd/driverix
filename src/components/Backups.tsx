@@ -74,7 +74,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
                 {b.entries.length} pacote(s) · ponto de restauração: {b.restorePoint}
               </div>
               <div className="sub mono">{b.entries.map((e) => `${e.deviceName} ${e.oldVersion}`).join(" · ")}</div>
-            </button>
+            </div>
             <button
               type="button"
               aria-label={`Restaurar backup de ${formatUnix(b.createdUnix)}`}

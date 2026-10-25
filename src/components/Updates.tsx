@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Offer } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
 import { OFFER_SORTS, type OfferSort, sortOffers } from "../lib/offerSort";
@@ -30,6 +30,13 @@ export function Updates({ offers, installedVersion, busy, elevated, broken, onIn
   const chosen = installable.filter((o) => picked.has(o.candidate.updateId));
   const fixes = installable.filter((o) => o.fixesProblem);
   const chosenBytes = chosen.reduce((sum, o) => sum + o.candidate.sizeBytes, 0);
+  // Callback ref: shows "some selected" on the header checkbox without an effect that lists its deps.
+  const setSelectAll = useCallback(
+    (el: HTMLInputElement | null) => {
+      if (el) el.indeterminate = !allOn && chosen.length > 0;
+    },
+    [allOn, chosen.length],
+  );
   // Fixes first: a device that is failing right now is the reason most people open the app.
   const pickFixes = () => setPicked(new Set(fixes.map((o) => o.candidate.updateId)));
 
