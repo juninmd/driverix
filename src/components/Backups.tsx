@@ -19,7 +19,10 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
       .finally(() => setLoaded(true));
   }, [refreshKey]);
 
-  const close = useCallback(() => setTarget(null), []);
+  // Closing mid-rollback would hide a half-applied change; the dialog stays until the run ends.
+  const close = useCallback(() => {
+    if (!busy) setTarget(null);
+  }, [busy]);
 
   // Restoring re-installs drivers as admin; a second click must not start another rollback.
   const run = async () => {
@@ -81,7 +84,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
           onClose={close}
           actions={
             <>
-              <button type="button" onClick={close}>
+              <button type="button" onClick={close} disabled={busy}>
                 Cancelar
               </button>
               <button type="button" className="primary" disabled={busy} onClick={run}>
@@ -94,6 +97,11 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
             Remove os pacotes instalados na atualização de {formatUnix(target.createdUnix)} e reinstala os anteriores a
             partir do backup. Dispositivos podem reiniciar por alguns segundos.
           </p>
+          {busy && (
+            <p role="status" aria-live="polite">
+              Restaurando… não feche o Driverix.
+            </p>
+          )}
         </Dialog>
       )}
     </>
