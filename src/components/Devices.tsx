@@ -1,16 +1,35 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import type { Device } from "../lib/api";
-import { DEVICE_SORTS, type DeviceSort, indexDevices, selectDevices, sortDevices } from "../lib/devices";
+import { DEVICE_SORTS, type DeviceSort, devicesToTsv, indexDevices, selectDevices, sortDevices } from "../lib/devices";
 import { formatDate, isOldDriver, problemText } from "../lib/format";
 
 export function Devices({ devices }: { devices: Device[] }) {
   const [query, setQuery] = useState("");
-  // Typing stays responsive: the list catches up with the box instead of blocking each keystroke.
   const deferredQuery = useDeferredValue(query);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" focuses the search, as in most table tools, unless the user is already typing somewhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea, [contenteditable='true']")) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [onlyOld, setOnlyOld] = useState(false);
   const [cls, setCls] = useState("");
   const [sort, setSort] = useState<DeviceSort>("inventory");
+  const [copied, setCopied] = useState<"" | "ok" | "fail">("");
+  const copiedTimer = useRef<number | undefined>(undefined);
+
+  // A second click must restart the message, and unmount must not leave a timer behind.
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
 
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
   const index = useMemo(() => indexDevices(devices), [devices]);
@@ -24,6 +43,7 @@ export function Devices({ devices }: { devices: Device[] }) {
       <div className="filters">
         <input
           type="search"
+          ref={searchRef}
           placeholder="Buscar dispositivo, fabricante ou ID"
           aria-label="Buscar dispositivo"
           value={query}
@@ -53,8 +73,30 @@ export function Devices({ devices }: { devices: Device[] }) {
         <span className="count">
           {shown.length} de {devices.length}
         </span>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(devicesToTsv(shown));
+              setCopied("ok");
+            } catch {
+              setCopied("fail");
+            }
+            window.clearTimeout(copiedTimer.current);
+            copiedTimer.current = window.setTimeout(() => setCopied(""), 2500);
+          }}
+          disabled={shown.length === 0}
+        >
+          Copiar lista
+        </button>
+        {copied && (
+          <span role="status" className={copied === "ok" ? "okbox" : "error"}>
+            {copied === "ok" ? "Lista copiada (TSV)." : "Não foi possível copiar."}
+          </span>
+        )}
       </div>
       <table className="data-table">
+        <caption className="sr-only">Dispositivos encontrados</caption>
         <thead>
           <tr>
             <th>Dispositivo</th>
@@ -79,7 +121,7 @@ export function Devices({ devices }: { devices: Device[] }) {
                 {formatDate(d.date)}
                 {isOldDriver(d.date, d.provider) && (
                   <span className="chip warn" title="Driver de terceiros com 3 anos ou mais">
-                    antigo
+                    antigo (3+ anos)
                   </span>
                 )}
               </td>
@@ -93,6 +135,13 @@ export function Devices({ devices }: { devices: Device[] }) {
               </td>
             </tr>
           ))}
+          {shown.length === 0 && (
+            <tr>
+              <td colSpan={6} className="empty" role="status">
+                {devices.length === 0 ? "Nenhum dispositivo listado." : "Nenhum dispositivo corresponde aos filtros."}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </>

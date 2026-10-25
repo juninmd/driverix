@@ -7,7 +7,16 @@ export function formatBytes(n: number): string {
     v /= 1024;
     i++;
   }
-  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+  // Rounding can reach 1024 (1023.7 KB would print "1024 KB"); show that in the next unit.
+  if (i < units.length - 1 && Number(digits(v, i)) >= 1024) {
+    v /= 1024;
+    i++;
+  }
+  return `${digits(v, i)} ${units[i]}`;
+}
+
+function digits(v: number, unit: number): string {
+  return v >= 100 || unit === 0 ? String(Math.round(v)) : v.toFixed(1);
 }
 
 /** `2024-05-06` -> `06/05/2024`, without going through Date so the day never shifts with the timezone. */
@@ -23,11 +32,18 @@ const PROBLEMS: Record<number, string> = {
   22: "Desativado",
   28: "Sem driver instalado",
   31: "Não está funcionando direito",
+  39: "Driver corrompido ou ausente",
   43: "Parado pelo Windows por falha",
+  45: "Não conectado ao computador",
 };
 
 export function problemText(code: number): string {
   return code === 0 ? "OK" : (PROBLEMS[code] ?? `Problema (código ${code})`);
+}
+
+/** Windows reports HRESULTs as signed 32-bit ints; users and Microsoft's docs use the unsigned hex form. */
+export function hresultHex(code: number): string {
+  return `0x${(code >>> 0).toString(16).toUpperCase().padStart(8, "0")}`;
 }
 
 export function formatUnix(secs: number): string {

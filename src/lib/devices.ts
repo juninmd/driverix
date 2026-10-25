@@ -62,3 +62,18 @@ export function selectDevices(index: IndexedDevice[], filter: DeviceFilter): Dev
   }
   return out;
 }
+
+/** Tab-separated rows with a header, for pasting into a spreadsheet or a bug report. */
+export function devicesToTsv(devices: Device[]): string {
+  const clean = (s?: string | null) => {
+    const flat = (s ?? "").replace(/[\t\r\n]+/g, " ").trim();
+    // Spreadsheets run a cell that starts with = + - @ as a formula; a leading quote keeps it text.
+    return /^[=+\-@]/.test(flat) ? `'${flat}` : flat;
+  };
+  const rows = devices.map((d) =>
+    [clean(d.name) || clean(d.instanceId), clean(d.class), clean(d.version), clean(d.instanceId)]
+      .map((v) => v || "—")
+      .join("\t"),
+  );
+  return ["Dispositivo\tClasse\tVersão\tID", ...rows].join("\n");
+}
