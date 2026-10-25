@@ -189,7 +189,7 @@ impl Host for WindowsHost<'_> {
 fn refuse_reparse(dir: &Path) -> Result<()> {
     if sys::is_reparse_point(dir) {
         return Err(Error::Denied(format!(
-            "{} é um link/junção; recusando usar como pasta de backup",
+            "{} é um link/junção ou não pôde ser verificado; recusando usar como pasta de backup",
             dir.display()
         )));
     }
