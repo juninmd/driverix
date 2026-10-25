@@ -24,6 +24,10 @@ export function Devices({ devices }: { devices: Device[] }) {
   const [cls, setCls] = useState("");
   const [sort, setSort] = useState<DeviceSort>("inventory");
   const [copied, setCopied] = useState<"" | "ok" | "fail">("");
+  const copiedTimer = useRef<number | undefined>(undefined);
+
+  // A second click must restart the message, and unmount must not leave a timer behind.
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
 
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
   const shown = useMemo(() => {
@@ -83,7 +87,8 @@ export function Devices({ devices }: { devices: Device[] }) {
             } catch {
               setCopied("fail");
             }
-            setTimeout(() => setCopied(""), 2500);
+            window.clearTimeout(copiedTimer.current);
+            copiedTimer.current = window.setTimeout(() => setCopied(""), 2500);
           }}
           disabled={shown.length === 0}
         >
@@ -135,6 +140,13 @@ export function Devices({ devices }: { devices: Device[] }) {
               </td>
             </tr>
           ))}
+          {shown.length === 0 && (
+            <tr>
+              <td colSpan={6} className="empty" role="status">
+                {devices.length === 0 ? "Nenhum dispositivo listado." : "Nenhum dispositivo corresponde aos filtros."}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </>
