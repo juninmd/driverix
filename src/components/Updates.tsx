@@ -28,6 +28,10 @@ export function Updates({ offers, installedVersion, busy, elevated, broken, onIn
   const allOn = installable.length > 0 && installable.every((o) => picked.has(o.candidate.updateId));
   const toggleAll = () => setPicked(allOn ? new Set() : new Set(installable.map((o) => o.candidate.updateId)));
   const chosen = installable.filter((o) => picked.has(o.candidate.updateId));
+  const fixes = installable.filter((o) => o.fixesProblem);
+  const chosenBytes = chosen.reduce((sum, o) => sum + o.candidate.sizeBytes, 0);
+  // Fixes first: a device that is failing right now is the reason most people open the app.
+  const pickFixes = () => setPicked(new Set(fixes.map((o) => o.candidate.updateId)));
 
   if (installable.length === 0) {
     // "Em dia" would contradict the summary when a device is failing; send the user to that device.
@@ -105,7 +109,14 @@ export function Updates({ offers, installedVersion, busy, elevated, broken, onIn
         </tbody>
       </table>
       <div className="actionbar">
-        <span>{chosen.length} selecionada(s)</span>
+        <span>
+          {chosen.length} selecionada(s){chosen.length > 0 && ` · ${formatBytes(chosenBytes)}`}
+        </span>
+        {fixes.length > 0 && (
+          <button type="button" onClick={pickFixes} disabled={busy}>
+            Selecionar as que corrigem problema ({fixes.length})
+          </button>
+        )}
         <button
           type="button"
           className="primary"
