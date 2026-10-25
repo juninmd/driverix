@@ -16,7 +16,7 @@ const PHASE_TEXT = {
 } as const;
 
 export default function App() {
-  const { state, start, cancel } = useScan();
+  const { state, last, start, cancel } = useScan();
   const hardware = useHardware();
   const [status, setStatus] = useState<Status>({ elevated: false, backupsDir: "" });
   const [tab, setTab] = useState<Tab>("updates");
@@ -28,7 +28,7 @@ export default function App() {
     api.status().then(setStatus);
   }, []);
 
-  const result = state.kind === "done" ? state.result : null;
+  const result = last?.result ?? null;
   const running = state.kind === "running";
   const devices = result?.devices ?? [];
   const byId = useMemo(() => new Map(devices.map((d) => [d.instanceId, d])), [devices]);
@@ -89,6 +89,8 @@ export default function App() {
       {result && (
         <p className="summary">
           {devices.length} dispositivos · {newer} atualização(ões) disponível(is) · {broken} com problema
+          {last &&
+            ` · buscado às ${new Date(last.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
         </p>
       )}
 
