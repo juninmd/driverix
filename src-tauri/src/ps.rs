@@ -104,6 +104,12 @@ pub fn run_script(
         "-EncodedCommand",
         &encoded,
     ]);
+    // Only the system module folder: a per-user one could shadow Get-CimInstance and the like in
+    // an elevated shell, and the path is taken from GetSystemDirectoryW, not the environment.
+    cmd.env(
+        "PSModulePath",
+        crate::sys::system32(r"WindowsPowerShell\v1.0\Modules"),
+    );
     if let Some(input) = input {
         cmd.env("DRIVERIX_INPUT", input);
     }
