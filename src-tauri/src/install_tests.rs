@@ -443,6 +443,22 @@ fn a_failed_delete_skips_the_add_and_reports() {
 }
 
 #[test]
+fn a_failed_re_add_tells_the_user_the_device_may_have_no_driver() {
+    let r = installed("readd-fail");
+    let f = Fake {
+        add_fails: true,
+        ..with_inventories(vec![Some(vec![dev("oem9.inf", 0)])])
+    };
+    let rep = rollback(&f, &r, "10").unwrap();
+    assert_eq!(rep.restored, 0);
+    assert!(
+        rep.errors[0].contains("reinstale pelo Windows Update"),
+        "{:?}",
+        rep.errors
+    );
+}
+
+#[test]
 fn rollback_with_a_missing_backup_folder_reports_instead_of_deleting() {
     let r = installed("rollback-missing");
     std::fs::remove_dir_all(r.join("10").join("oem7")).unwrap();
