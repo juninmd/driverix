@@ -1,5 +1,5 @@
-!// Every side effect on the machine goes through `Host`, so the install/rollback flow can be
-!// tested with a fake and the real implementation stays a thin layer over PowerShell and pnputil.
+//! Every side effect on the machine goes through `Host`, so the install/rollback flow can be
+//! tested with a fake and the real implementation stays a thin layer over PowerShell and pnputil.
 
 use crate::error::{Error, Result};
 use crate::ps::{run_process, run_script, scripts};
@@ -204,12 +204,7 @@ impl Host for WindowsHost<'_> {
     }
 
     fn secure_dir(&self, dir: &Path) -> Result<()> {
-        // Check before creating: create_dir_all would follow a planted junction and make folders through it.
-        refuse_reparse(dir)?;
-        if let Some(parent) = dir.parent() {
-            refuse_reparse(parent)?;
-        }
-        std::fs::create_dir_all(dir)?;
+        ensure_plain_dir_chain(dir)?;
         if let Some(parent) = dir.parent() {
             self.lock_down(parent)?;
         }
