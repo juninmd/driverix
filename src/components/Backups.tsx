@@ -85,11 +85,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               >
                 Restaurar
               </button>
-              <button
-                type="button"
-                disabled={!elevated || busy}
-                onClick={() => setDoomed(b)}
-              >
+              <button type="button" disabled={!elevated || busy} onClick={() => setDoomed(b)}>
                 Apagar
               </button>
             </div>
