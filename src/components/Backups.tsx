@@ -7,6 +7,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
   const [list, setList] = useState<Backup[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [target, setTarget] = useState<Backup | null>(null);
+  const [doomed, setDoomed] = useState<Backup | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RollbackReport | null>(null);
   const [error, setError] = useState("");
@@ -69,12 +70,51 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               </div>
               <div className="sub mono">{b.entries.map((e) => `${e.deviceName} ${e.oldVersion}`).join(" · ")}</div>
             </div>
-            <button type="button" disabled={!elevated || busy || b.entries.length === 0} onClick={() => setTarget(b)}>
-              Restaurar
-            </button>
+            <div className="row-actions">
+              <button type="button" disabled={!elevated || busy || b.entries.length === 0} onClick={() => setTarget(b)}>
+                Restaurar
+              </button>
+              <button type="button" disabled={!elevated || busy} onClick={() => setDoomed(b)}>
+                Apagar
+              </button>
+            </div>
           </li>
         ))}
       </ul>
+      {doomed && (
+        <Dialog
+          title="Apagar este backup?"
+          onClose={() => setDoomed(null)}
+          actions={
+            <>
+              <button type="button" onClick={() => setDoomed(null)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={async () => {
+                  const id = doomed.id;
+                  setDoomed(null);
+                  try {
+                    await api.deleteBackup(id);
+                    setList((l) => l.filter((b) => b.id !== id));
+                  } catch (e) {
+                    setError(String(e));
+                  }
+                }}
+              >
+                Apagar
+              </button>
+            </>
+          }
+        >
+          <p>
+            Apaga a cópia dos drivers de {formatUnix(doomed.createdUnix)}. Depois disso não será possível restaurar esse
+            estado. Não pode ser desfeito.
+          </p>
+        </Dialog>
+      )}
       {target && (
         <Dialog
           title="Restaurar drivers anteriores?"

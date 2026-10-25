@@ -100,6 +100,23 @@ pub fn list(root: &Path) -> Vec<Manifest> {
     all
 }
 
+/// Removes one backup folder. Only the folder named by a valid id is touched, and a junction is
+/// refused: deleting through one would remove whatever it points at.
+pub fn delete(root: &Path, id: &str) -> Result<()> {
+    let dir = dir_for(root, id)?;
+    if !dir.is_dir() {
+        return Err(Error::Denied("Backup não encontrado".into()));
+    }
+    if crate::sys::is_reparse_point(&dir) {
+        return Err(Error::Denied(format!(
+            "{} é um link/junção; recusando apagar",
+            dir.display()
+        )));
+    }
+    std::fs::remove_dir_all(&dir)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,5 +229,25 @@ mod tests {
             package_dir(Path::new("b"), "oem7.inf"),
             Path::new("b").join("oem7")
         );
+    }
+
+    #[test]
+    fn delete_removes_only_the_named_backup() {
+        let root = tmp("delete");
+        let keep = root.join("1");
+        std::fs::create_dir_all(&keep).unwrap();
+        let victim = root.join("2");
+        std::fs::create_dir_all(&victim).unwrap();
+        std::fs::write(victim.join("manifest.json"), b"{}").unwrap();
+        delete(&root, "2").unwrap();
+        assert!(!victim.exists());
+        assert!(keep.exists());
+    }
+
+    #[test]
+    fn delete_refuses_ids_that_are_not_backup_ids_and_missing_backups() {
+        let root = tmp("delete-bad");
+        assert!(delete(&root, "../etc").is_err());
+        assert!(delete(&root, "99").is_err());
     }
 }
