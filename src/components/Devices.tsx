@@ -81,6 +81,15 @@ export function Devices({ devices }: { devices: Device[] }) {
               <td className={d.problemCode === 0 ? "ok" : "bad"}>{problemText(d.problemCode)}</td>
             </tr>
           ))}
+          {shown.length === 0 && (
+            <tr>
+              <td colSpan={6} className="empty">
+                {devices.length === 0
+                  ? "Nenhum dispositivo encontrado."
+                  : "Nenhum dispositivo corresponde aos filtros."}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </>
