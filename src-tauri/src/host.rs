@@ -70,12 +70,7 @@ impl WindowsHost<'_> {
     }
 
     fn lock_down(&self, dir: &Path) -> Result<()> {
-        if sys::is_reparse_point(dir) {
-            return Err(Error::Denied(format!(
-                "{} é um link/junção; recusando usar como pasta de backup",
-                dir.display()
-            )));
-        }
+        refuse_reparse(dir)?;
         // Owner first: whoever created the folder keeps implicit rights until ownership moves.
         self.tool(
             "ajuste de dono da pasta de backup",
@@ -132,6 +127,11 @@ impl Host for WindowsHost<'_> {
     }
 
     fn secure_dir(&self, dir: &Path) -> Result<()> {
+        // Check before creating: create_dir_all would follow a planted junction and make folders through it.
+        refuse_reparse(dir)?;
+        if let Some(parent) = dir.parent() {
+            refuse_reparse(parent)?;
+        }
         std::fs::create_dir_all(dir)?;
         if let Some(parent) = dir.parent() {
             self.lock_down(parent)?;
@@ -184,6 +184,16 @@ impl Host for WindowsHost<'_> {
             ],
         )
     }
+}
+
+fn refuse_reparse(dir: &Path) -> Result<()> {
+    if sys::is_reparse_point(dir) {
+        return Err(Error::Denied(format!(
+            "{} é um link/junção; recusando usar como pasta de backup",
+            dir.display()
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
