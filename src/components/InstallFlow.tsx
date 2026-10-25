@@ -49,7 +49,8 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
   if (report) {
     const failed = report.outcomes.filter((o) => o.resultCode !== 2);
     // A selected update the Windows Update search no longer returns gets no outcome row at all.
-    const missing = Math.max(0, offers.length - report.outcomes.length);
+    // A failed Windows Update call leaves no outcomes; those updates were not "not found", so do not count them.
+    const missing = report.installError ? 0 : Math.max(0, offers.length - report.outcomes.length);
     return (
       <Dialog
         title={report.installError ? "Instalação não concluída" : "Instalação concluída"}
@@ -138,8 +139,9 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
         ))}
       </ul>
       <p>
-        Antes de instalar, o Driverix cria um ponto de restauração e exporta os drivers atuais. Se algum desses passos
-        falhar, nada é instalado. Os drivers vêm do Windows Update, assinados pela Microsoft.
+        Antes de instalar, o Driverix cria um ponto de restauração e exporta os drivers atuais. Se a exportação falhar,
+        nada é instalado. Se o ponto de restauração falhar, a instalação só segue se você marcar a opção abaixo. Os
+        drivers vêm do Windows Update, assinados pela Microsoft.
       </p>
       <label className="inline">
         <input type="checkbox" checked={skipRestore} onChange={(e) => setSkipRestore(e.target.checked)} /> Continuar
