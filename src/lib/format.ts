@@ -7,7 +7,16 @@ export function formatBytes(n: number): string {
     v /= 1024;
     i++;
   }
-  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+  // Rounding can reach 1024 (1023.7 KB would print "1024 KB"); show that in the next unit.
+  if (i < units.length - 1 && Number(digits(v, i)) >= 1024) {
+    v /= 1024;
+    i++;
+  }
+  return `${digits(v, i)} ${units[i]}`;
+}
+
+function digits(v: number, unit: number): string {
+  return v >= 100 || unit === 0 ? String(Math.round(v)) : v.toFixed(1);
 }
 
 /** `2024-05-06` -> `06/05/2024`, without going through Date so the day never shifts with the timezone. */
