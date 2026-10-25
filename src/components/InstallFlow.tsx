@@ -50,7 +50,7 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
     const missing = Math.max(0, offers.length - report.outcomes.length);
     return (
       <Dialog
-        title="Instalação concluída"
+        title={report.installError ? "Instalação não concluída" : "Instalação concluída"}
         onClose={close}
         actions={
           <button type="button" className="primary" onClick={onClose}>
@@ -58,6 +58,12 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
           </button>
         }
       >
+        {report.installError && (
+          <p className="error" role="alert">
+            O Windows Update falhou: {report.installError}. Alguns drivers podem ter sido instalados antes da falha;
+            confira os dispositivos abaixo. O backup continua na aba Backups.
+          </p>
+        )}
         <p>{RESTORE_TEXT[report.restorePoint]}</p>
         <p>
           {Math.max(0, offers.length - failed.length - missing)} de {offers.length} instalada(s). {report.backedUp}{" "}

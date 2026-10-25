@@ -333,7 +333,11 @@ fn the_backup_survives_a_failed_install_so_it_can_be_rolled_back() {
         install_fails: true,
         ..fake()
     };
-    assert!(install(&f, &[offer()], &r, 10, &InstallOptions::default()).is_err());
+    let rep = install(&f, &[offer()], &r, 10, &InstallOptions::default()).unwrap();
+    assert!(rep.install_error.is_some());
+    assert!(rep.outcomes.is_empty());
+    // The devices are still checked after the failure, so the report can say what state they are in.
+    assert!(rep.verified);
     assert_eq!(backup::list(&r).len(), 1);
 }
 
