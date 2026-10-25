@@ -43,6 +43,8 @@ describe("problemText", () => {
     expect(problemText(28)).toBe("Sem driver instalado");
     // 39 is the one that calls for a driver reinstall; without a name the user has no next step.
     expect(problemText(39)).toBe("Driver corrompido ou ausente");
+    // 52 is the unsigned-driver case; the user needs to know it is about the signature, not the device.
+    expect(problemText(52)).toBe("Assinatura digital não verificada");
     expect(problemText(99)).toBe("Problema (código 99)");
   });
 });
