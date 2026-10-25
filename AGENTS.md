@@ -42,3 +42,15 @@ Driverix: Tauri 2 desktop driver updater for Windows. Rust backend (`src-tauri/`
 - The Windows Update search takes ~1 minute on a cold machine; it is cancellable by killing the child.
 - `scripts/hardware.ps1` was written and its output parsing tested without a Windows machine; run `driverix-cli hardware` on a real one before a release.
 - Install and rollback paths are covered by fake-`Host` unit tests only; they need a manual run on a real elevated machine before a release.
+
+<!-- base-actions-main-policy -->
+## GitHub Actions — padrão obrigatório (@main)
+
+- Referencie as actions internas sempre pelo branch, nunca por SHA:
+  - `uses: juninmd/base-actions/<action>@main`
+  - `uses: juninmd/base-actions/.github/workflows/<arquivo>.yml@main`
+- Não fixe `@<sha>` em `juninmd/base-actions`: a atualização é centralizada no
+  `main` e passa a valer no próximo run.
+- PRs cujos checks não iniciam por billing/spending limit são mesclados pelo bot central
+  `juninmd/base-actions/.github/workflows/auto-merge-billing-blocked.yml`.
+  Para impedir o merge automático de um PR, aplique a label `do-not-merge`.
