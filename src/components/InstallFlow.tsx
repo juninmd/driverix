@@ -106,6 +106,12 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
             Com problema agora: {report.problemDevices.join(", ")}. Restaure o backup na aba Backups.
           </p>
         )}
+        {report.staleDevices.length > 0 && (
+          <p className="error">
+            Ainda na versão anterior: {report.staleDevices.join(", ")}. Pode ser preciso reiniciar; se persistir, busque
+            de novo.
+          </p>
+        )}
         {report.rebootRequired && <p>Reinicie o computador para concluir.</p>}
       </Dialog>
     );
