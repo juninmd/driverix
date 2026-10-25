@@ -86,6 +86,11 @@ export default function App() {
           {state.message}
         </p>
       )}
+      {state.kind === "cancelled" && (
+        <p className="progress" role="status">
+          Busca cancelada.
+        </p>
+      )}
       {result && (
         <p className="summary">
           {devices.length} dispositivos · {newer} atualização(ões) disponível(is) · {broken} com problema
