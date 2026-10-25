@@ -127,6 +127,7 @@ fn offer() -> Offer {
     Offer {
         candidate: Candidate {
             update_id: UPD.into(),
+            version: Some("2.0".into()),
             ..Default::default()
         },
         device_ids: vec!["PCI\\A".into()],
@@ -279,6 +280,20 @@ fn an_existing_backup_id_is_never_overwritten() {
     let f = fake();
     assert!(install(&f, &[offer()], &r, 10, &InstallOptions::default()).is_err());
     assert!(!f.calls().contains(&"install".to_string()));
+}
+
+#[test]
+fn a_driver_installed_since_the_scan_blocks_the_install_before_any_change() {
+    let r = root("stale");
+    // Already at 2.0 when the install starts: the offer is no longer newer.
+    let f = with_inventories(vec![Some(vec![dev("oem9.inf", 0)])]);
+    let err = install(&f, &[offer()], &r, 10, &InstallOptions::default()).unwrap_err();
+    assert!(matches!(err, Error::Denied(_)), "{err:?}");
+    assert!(
+        f.calls().is_empty(),
+        "no restore point, export or install may run: {:?}",
+        f.calls()
+    );
 }
 
 #[test]
