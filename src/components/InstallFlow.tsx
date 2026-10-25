@@ -68,7 +68,6 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
             {missing} não foi(ram) encontrada(s) pelo Windows Update na hora da instalação e não foi(ram) instalada(s).
           </p>
         )}
-        {failed.length > 0 && <p className="error">{failed.length} falharam; veja o Windows Update para detalhes.</p>}
         {failed.length > 0 && (
           <>
             <p className="error">{failed.length} falharam:</p>
