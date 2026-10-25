@@ -90,7 +90,9 @@ export function Updates({ offers, installedVersion, busy, elevated, broken, onIn
                   />
                 </td>
                 <td>
-                  <div className="title">{c.title}</div>
+                  <div className="title" title={o.reason}>
+                    {c.title}
+                  </div>
                   <div className="sub">
                     <span className="chip">{c.class || "Driver"}</span>
                     {o.fixesProblem && <span className="chip warn">corrige dispositivo com problema</span>}
