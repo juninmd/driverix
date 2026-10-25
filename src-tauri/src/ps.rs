@@ -5,6 +5,8 @@ use crate::error::{Error, Result};
 use std::io::Read;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 #[cfg(windows)]
@@ -78,12 +80,17 @@ pub fn run_process(
         }
         std::thread::sleep(Duration::from_millis(100));
     };
+    // One deadline for both pipes: a grandchild usually holds stdout and stderr together.
+    let deadline = Instant::now() + DRAIN_GRACE;
     Ok(Finished {
         code: status.code(),
-        stdout: out.join().unwrap_or_default(),
-        stderr: err.join().unwrap_or_default(),
+        stdout: collect(out, deadline, what)?,
+        stderr: collect(err, deadline, what)?,
     })
 }
+
+/// How long to wait for a pipe to close after the child exits; a grandchild can keep it open.
+const DRAIN_GRACE: Duration = Duration::from_secs(5);
 
 pub fn run_script(
     what: &'static str,
@@ -104,6 +111,12 @@ pub fn run_script(
         "-EncodedCommand",
         &encoded,
     ]);
+    // Only the system module folder: a per-user one could shadow Get-CimInstance and the like in
+    // an elevated shell, and the path is taken from GetSystemDirectoryW, not the environment.
+    cmd.env(
+        "PSModulePath",
+        crate::sys::system32(r"WindowsPowerShell\v1.0\Modules"),
+    );
     if let Some(input) = input {
         cmd.env("DRIVERIX_INPUT", input);
     }
@@ -118,16 +131,69 @@ pub fn run_script(
     }
 }
 
-fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> std::thread::JoinHandle<String> {
+/// Largest output a child may write. Scripts print a few hundred KB at most; a bigger stream is a
+/// fault, and reading it all would hold it in memory before the JSON parse fails on the truncation.
+const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+
+/// A pipe being read on its own thread: `buf` grows as bytes arrive, `done` fires at EOF, and
+/// `overflow` is set when the stream passed the size limit (the reader then stops).
+struct Drain {
+    buf: Arc<Mutex<Vec<u8>>>,
+    done: Receiver<()>,
+    overflow: Arc<AtomicBool>,
+}
+
+fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> Drain {
+    spawn_reader(pipe, MAX_OUTPUT)
+}
+
+fn spawn_reader<R: Read + Send + 'static>(pipe: Option<R>, limit: usize) -> Drain {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let overflow = Arc::new(AtomicBool::new(false));
+    let (tx, done) = mpsc::channel();
+    let (sink, flag) = (Arc::clone(&buf), Arc::clone(&overflow));
     std::thread::spawn(move || {
-        let mut buf = Vec::new();
         if let Some(mut p) = pipe {
-            let _ = p.read_to_end(&mut buf);
+            let mut chunk = [0u8; 8192];
+            while let Ok(n) = p.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                if let Ok(mut b) = sink.lock() {
+                    if b.len() + n > limit {
+                        flag.store(true, Ordering::Relaxed);
+                        break;
+                    }
+                    b.extend_from_slice(&chunk[..n]);
+                }
+            }
         }
-        String::from_utf8_lossy(&buf)
-            .trim_start_matches('\u{feff}')
-            .to_string()
-    })
+        let _ = tx.send(());
+    });
+    Drain {
+        buf,
+        done,
+        overflow,
+    }
+}
+
+/// Returns what the child wrote. Once the child has exited, everything it wrote is already in
+/// the pipe, so a pipe still held open by a grandchild only costs the wait, not the output.
+/// An overflowing stream is an error, never a silently cut-off result.
+fn collect(d: Drain, deadline: Instant, what: &'static str) -> Result<String> {
+    let _ = d
+        .done
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()));
+    if d.overflow.load(Ordering::Relaxed) {
+        return Err(Error::Command {
+            what,
+            detail: format!("saída maior que {} MiB", MAX_OUTPUT >> 20),
+        });
+    }
+    let bytes = d.buf.lock().map(|b| b.clone()).unwrap_or_default();
+    Ok(String::from_utf8_lossy(&bytes)
+        .trim_start_matches('\u{feff}')
+        .to_string())
 }
 
 pub mod scripts {
@@ -142,6 +208,26 @@ pub mod scripts {
 #[cfg(test)]
 mod tests {
     use super::scripts::*;
+    use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn a_grandchild_holding_the_pipe_cannot_block_past_the_deadline() {
+        // `start /B` leaves a process that inherits our stdout, so the pipe stays open after cmd exits.
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", "start /B ping -n 20 127.0.0.1"]);
+        let cancel = AtomicBool::new(false);
+        let started = Instant::now();
+        let done = run_process("teste", cmd, Duration::from_secs(30), &cancel)
+            .expect("the child exited cleanly, so its result must not turn into a failure");
+        assert_eq!(done.code, Some(0));
+        // ping runs for ~20 s; the call must return after the drain grace, not wait for it.
+        assert!(
+            started.elapsed() < Duration::from_secs(15),
+            "{:?}",
+            started.elapsed()
+        );
+    }
 
     #[test]
     fn encoded_command_is_base64_of_utf16le() {
@@ -180,5 +266,22 @@ mod tests {
                 "dynamic evaluation in script"
             );
         }
+    }
+
+    #[test]
+    fn output_at_the_limit_is_kept_whole() {
+        let d = spawn_reader(Some(std::io::Cursor::new(b"0123456789".to_vec())), 10);
+        let out = collect(d, Instant::now() + Duration::from_secs(5), "teste").unwrap();
+        assert_eq!(out, "0123456789");
+    }
+
+    #[test]
+    fn output_over_the_limit_is_an_error_not_a_truncated_result() {
+        let d = spawn_reader(Some(std::io::Cursor::new(vec![b'x'; 100])), 10);
+        let err = collect(d, Instant::now() + Duration::from_secs(5), "teste").unwrap_err();
+        assert!(
+            matches!(err, Error::Command { what: "teste", .. }),
+            "{err:?}"
+        );
     }
 }

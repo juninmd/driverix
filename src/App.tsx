@@ -53,7 +53,7 @@ export default function App() {
       <header>
         <div>
           <h1>Driverix</h1>
-          <p className="sub">Drivers do Windows Update, com backup e rollback</p>
+          <p className="sub">Drivers do Windows Update, com backup e restauração</p>
         </div>
         {running ? (
           <button type="button" onClick={cancel}>
@@ -89,6 +89,11 @@ export default function App() {
       {state.kind === "cancelled" && (
         <p className="progress" role="status">
           Busca cancelada.
+        </p>
+      )}
+      {result?.updatesError && (
+        <p className="error" role="alert">
+          Não foi possível consultar o Windows Update: {result.updatesError}. Os dispositivos continuam listados.
         </p>
       )}
       {result && (
@@ -141,7 +146,9 @@ export default function App() {
               installedVersion={installedVersion}
               busy={running || installing !== null}
               elevated={status.elevated}
+              broken={broken}
               onInstall={setInstalling}
+              onShowDevices={() => setTab("devices")}
             />
           ) : (
             <p className="empty">Clique em “Buscar atualizações” para começar.</p>

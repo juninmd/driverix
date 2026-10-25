@@ -297,6 +297,25 @@ fn a_driver_installed_since_the_scan_blocks_the_install_before_any_change() {
 }
 
 #[test]
+fn a_device_still_on_its_old_driver_is_reported_as_stale() {
+    let r = root("stale-after");
+    // Windows Update said success, but the device still reports 1.0 against the 2.0 offer.
+    let f = with_inventories(vec![
+        Some(vec![dev("oem7.inf", 0)]),
+        Some(vec![dev("oem7.inf", 0)]),
+    ]);
+    let rep = install(&f, &[offer()], &r, 10, &InstallOptions::default()).unwrap();
+    assert_eq!(rep.stale_devices, vec!["NIC"]);
+}
+
+#[test]
+fn a_device_on_the_offered_version_is_not_stale() {
+    let r = root("stale-none");
+    let rep = install(&fake(), &[offer()], &r, 10, &InstallOptions::default()).unwrap();
+    assert!(rep.stale_devices.is_empty());
+}
+
+#[test]
 fn reports_reboot_need_and_a_verified_clean_result() {
     let r = root("ok");
     let rep = install(&fake(), &[offer()], &r, 10, &InstallOptions::default()).unwrap();
@@ -333,7 +352,11 @@ fn the_backup_survives_a_failed_install_so_it_can_be_rolled_back() {
         install_fails: true,
         ..fake()
     };
-    assert!(install(&f, &[offer()], &r, 10, &InstallOptions::default()).is_err());
+    let rep = install(&f, &[offer()], &r, 10, &InstallOptions::default()).unwrap();
+    assert!(rep.install_error.is_some());
+    assert!(rep.outcomes.is_empty());
+    // The devices are still checked after the failure, so the report can say what state they are in.
+    assert!(rep.verified);
     assert_eq!(backup::list(&r).len(), 1);
 }
 
@@ -368,7 +391,7 @@ fn rollback_deletes_what_the_device_uses_now_then_restores_and_verifies() {
     ]);
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!((rep.restored, rep.errors.len()), (1, 0));
-    assert_eq!(f.calls(), ["delete oem9.inf", "add *.inf"]);
+    assert_eq!(f.calls(), ["secure", "delete oem9.inf", "add *.inf"]);
 }
 
 #[test]
@@ -386,7 +409,7 @@ fn rollback_works_even_if_the_install_never_recorded_the_new_package() {
     ]);
     let rep = rollback(&g, &r, "10").unwrap();
     assert_eq!(rep.restored, 1);
-    assert_eq!(g.calls(), ["delete oem9.inf", "add *.inf"]);
+    assert_eq!(g.calls(), ["secure", "delete oem9.inf", "add *.inf"]);
 }
 
 #[test]
@@ -399,7 +422,7 @@ fn rollback_can_be_retried_after_the_delete_already_happened() {
     ]);
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!(rep.restored, 1);
-    assert_eq!(f.calls(), ["add *.inf"]);
+    assert_eq!(f.calls(), ["secure", "add *.inf"]);
 }
 
 #[test]
@@ -435,7 +458,23 @@ fn a_failed_delete_skips_the_add_and_reports() {
     };
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!((rep.restored, rep.errors.len()), (0, 1));
-    assert_eq!(f.calls(), ["delete oem9.inf"]);
+    assert_eq!(f.calls(), ["secure", "delete oem9.inf"]);
+}
+
+#[test]
+fn a_failed_re_add_tells_the_user_the_device_may_have_no_driver() {
+    let r = installed("readd-fail");
+    let f = Fake {
+        add_fails: true,
+        ..with_inventories(vec![Some(vec![dev("oem9.inf", 0)])])
+    };
+    let rep = rollback(&f, &r, "10").unwrap();
+    assert_eq!(rep.restored, 0);
+    assert!(
+        rep.errors[0].contains("reinstale pelo Windows Update"),
+        "{:?}",
+        rep.errors
+    );
 }
 
 #[test]
@@ -445,7 +484,8 @@ fn rollback_with_a_missing_backup_folder_reports_instead_of_deleting() {
     let f = with_inventories(vec![Some(vec![dev("oem9.inf", 0)])]);
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!((rep.restored, rep.errors.len()), (0, 1));
-    assert!(f.calls().is_empty());
+    // Nothing is deleted or re-added when the package folder is gone; locking the root is allowed.
+    assert!(f.calls().iter().all(|c| c == "secure"), "{:?}", f.calls());
 }
 
 impl Device {
