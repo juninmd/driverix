@@ -81,6 +81,7 @@ export function Devices({ devices }: { devices: Device[] }) {
         )}
       </div>
       <table className="data-table">
+        <caption className="sr-only">Dispositivos encontrados</caption>
         <thead>
           <tr>
             <th>Dispositivo</th>

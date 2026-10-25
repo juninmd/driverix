@@ -35,6 +35,7 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
   return (
     <>
       <table className="data-table">
+        <caption className="sr-only">Atualizações disponíveis</caption>
         <thead>
           <tr>
             <th className="check">
