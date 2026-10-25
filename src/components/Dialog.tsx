@@ -9,6 +9,25 @@ interface Props {
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex="0"]';
 
+/**
+ * Marks everything outside the path from `node` up to <html> as inert. The dialog can render inside
+ * a tab panel, so its direct siblings are not the whole page; the header and tabs sit further up.
+ */
+function inertOutside(node: Element): () => void {
+  const marked: Element[] = [];
+  for (let el: Element = node; el.parentElement; el = el.parentElement) {
+    for (const sib of el.parentElement.children) {
+      if (sib !== el && !sib.hasAttribute("inert")) {
+        sib.setAttribute("inert", "");
+        marked.push(sib);
+      }
+    }
+  }
+  return () => {
+    for (const el of marked) el.removeAttribute("inert");
+  };
+}
+
 export function Dialog({ title, onClose, children, actions }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   // Held in a ref so the focus effect below runs once; a new onClose identity would otherwise re-focus.
@@ -19,10 +38,7 @@ export function Dialog({ title, onClose, children, actions }: Props) {
     const previous = document.activeElement as HTMLElement | null;
     const dialog = ref.current;
     dialog?.focus();
-    // The app root sits behind the backdrop; inert keeps Tab and screen readers out of it.
-    const backdrop = dialog?.parentElement;
-    const siblings = [...(backdrop?.parentElement?.children ?? [])].filter((el) => el !== backdrop);
-    for (const el of siblings) el.setAttribute("inert", "");
+    const releaseInert = dialog ? inertOutside(dialog) : () => {};
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeRef.current();
@@ -43,7 +59,7 @@ export function Dialog({ title, onClose, children, actions }: Props) {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      for (const el of siblings) el.removeAttribute("inert");
+      releaseInert();
       previous?.focus();
     };
   }, []);
