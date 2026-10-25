@@ -60,8 +60,8 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
       >
         <p>{RESTORE_TEXT[report.restorePoint]}</p>
         <p>
-          {offers.length - failed.length - missing} de {offers.length} instalada(s). {report.backedUp} pacote(s) com
-          backup.
+          {Math.max(0, offers.length - failed.length - missing)} de {offers.length} instalada(s). {report.backedUp}{" "}
+          pacote(s) com backup.
         </p>
         {missing > 0 && (
           <p className="error">
