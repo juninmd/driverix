@@ -45,7 +45,7 @@ fn ensure_restore_point(host: &dyn Host, opts: &InstallOptions) -> Result<&'stat
         Ok(()) => Ok("created"),
         Err(_) if opts.allow_no_restore_point => Ok("skipped"),
         Err(e) => Err(Error::Denied(format!(
-            "Não foi possível criar o ponto de restauração ({e}). Ative a Proteção do Sistema ou confirme que aceita seguir sem ele."
+            "Não foi possível criar o ponto de restauração ({e}). Ative a Proteção do Sistema ou marque a opção para continuar sem ele."
         ))),
     }
 }
@@ -169,9 +169,10 @@ pub fn rollback(host: &dyn Host, root: &Path, backup_id: &str) -> Result<Rollbac
     for e in &manifest.entries {
         let pkg = backup::package_dir(&dir, &e.old_inf);
         if !pkg.is_dir() {
-            report
-                .errors
-                .push(format!("{}: pasta de backup ausente", e.device_name));
+            report.errors.push(format!(
+                "{}: arquivos do backup não encontrados; este item não pode ser restaurado",
+                e.device_name
+            ));
             continue;
         }
         let mut stale: Vec<&str> = current
