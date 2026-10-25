@@ -32,7 +32,11 @@ const PROBLEMS: Record<number, string> = {
   22: "Desativado",
   28: "Sem driver instalado",
   31: "Não está funcionando direito",
+  18: "Reinstale o driver",
+  37: "Driver não iniciou",
   39: "Driver corrompido ou ausente",
+  48: "Driver bloqueado pelo Windows",
+  52: "Assinatura digital não verificada",
   43: "Parado pelo Windows por falha",
   45: "Não conectado ao computador",
 };
