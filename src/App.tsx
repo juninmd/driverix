@@ -24,7 +24,7 @@ export default function App() {
   const elevated = status?.elevated ?? false;
   const [tab, setTab] = useState<Tab>("updates");
   const [installing, setInstalling] = useState<Offer[] | null>(null);
-  const [backupsKey, setBackupsKey] = useState(0);
+  const [backupsKey, setBackupsKey] = State(0);
   const [elevateError, setElevateError] = useState("");
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function App() {
       <header>
         <div>
           <h1>Driverix</h1>
-          <p className="sub">Drivers do Windows Update, com backup e rollback</p>
+          <p className="sub">Drivers do Windows Update, com backup e restauração</p>
         </div>
         {running ? (
           <button type="button" onClick={cancel}>
@@ -92,6 +92,11 @@ export default function App() {
       {state.kind === "error" && (
         <p className="error" role="alert">
           {state.message}
+        </p>
+      )}
+      {result?.updatesError && (
+        <p className="error" role="alert">
+          Não foi possível consultar o Windows Update: {result.updatesError}. Os dispositivos continuam listados.
         </p>
       )}
       {result && (
@@ -143,8 +148,10 @@ export default function App() {
               offers={result.offers}
               installedVersion={installedVersion}
               busy={running || installing !== null}
-              elevated={elevated}
+              elevated={status.elevated}
+              broken={broken}
               onInstall={setInstalling}
+              onShowDevices={() => setTab("devices")}
             />
           ) : (
             <p className="empty">Clique em “Buscar atualizações” para começar.</p>
