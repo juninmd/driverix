@@ -7,8 +7,15 @@ export type ScanState =
   | { kind: "done"; result: ScanResult; at: number }
   | { kind: "error"; message: string };
 
+export interface LastScan {
+  result: ScanResult;
+  at: number;
+}
+
 export function useScan() {
   const [state, setState] = useState<ScanState>({ kind: "idle" });
+  // Kept apart from `state` so a re-scan does not blank the list the user is looking at.
+  const [last, setLast] = useState<LastScan | null>(null);
 
   useEffect(() => {
     const un = api.onScanPhase((phase) => setState((s) => (s.kind === "running" ? { kind: "running", phase } : s)));
@@ -21,7 +28,9 @@ export function useScan() {
     setState({ kind: "running", phase: "inventory" });
     try {
       const result = await api.scanUpdates();
-      setState({ kind: "done", result, at: Date.now() });
+      const at = Date.now();
+      setLast({ result, at });
+      setState({ kind: "done", result, at });
     } catch (e) {
       setState({ kind: "error", message: String(e) });
     }
@@ -31,5 +40,5 @@ export function useScan() {
     void api.cancel();
   }, []);
 
-  return { state, start, cancel };
+  return { state, last, start, cancel };
 }

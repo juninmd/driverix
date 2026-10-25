@@ -33,7 +33,7 @@ Detecta o hardware do Windows e atualiza os drivers pelo Windows Update, com pon
 |---|---|
 | 🔍 **Inventário** | Lê todos os dispositivos PnP (`Win32_PnPEntity` + `Win32_PnPSignedDriver`): classe, fabricante, versão, data, INF, assinatura e código de problema do Gerenciador de Dispositivos. |
 | 🖥️ **Hardware (estilo AIDA64)** | Aba com árvore de categorias e lista de propriedades: computador, SO, placa-mãe e BIOS, CPU (núcleos, clock, caches), memória (módulos, tipo, velocidade, uso), vídeo (VRAM real, driver), discos (tipo, saúde, uso por volume), rede e bateria. Botão para copiar o relatório em texto. Somente leitura. |
-| 🏷️ **Base de IDs** | Decodifica `VEN_`/`VID_` dos hardware IDs offline (fabricante e classe PCI), então um dispositivo sem nome ainda aparece como `PCI 10DE:2684 · Controlador de vídeo`. Drivers de terceiros com 3+ anos ganham o selo "antigo". |
+| 🏷️ **Base de IDs** | Decodifica `VEN_`/`VID_` dos hardware IDs offline (fabricante e classe PCI), então um dispositivo sem nome ainda aparece como `PCI 10DE:2684 · Controlador de vídeo`. Drivers de terceiros com 3+ anos ganham o selo "antigo (3+ anos)". |
 | ⬆️ **Atualizações** | Pergunta ao Windows Update por drivers (`Type='Driver'`) e casa cada oferta com o dispositivo pelo hardware ID. A comparação é numérica (`10.9` < `10.10`) e **nunca faz downgrade**. |
 | 🛟 **Instalação segura** | Ponto de restauração → exporta o pacote atual (`pnputil /export-driver`) → instala → confere se o dispositivo ficou sem erro. Se qualquer passo antes da instalação falhar, nada é instalado. |
 | ⏪ **Rollback** | A aba Backups reinstala o pacote anterior e só conta como restaurado se o dispositivo voltar a reportar a versão antiga. |

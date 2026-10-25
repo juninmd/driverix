@@ -1,19 +1,23 @@
 import { useMemo, useState } from "react";
 import type { Offer } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
-import { orderOffers } from "../lib/offers";
+import { OFFER_SORTS, type OfferSort, sortOffers } from "../lib/offerSort";
 
 interface Props {
   offers: Offer[];
   installedVersion: (offer: Offer) => string;
   busy: boolean;
   elevated: boolean;
+  broken: number;
   onInstall: (offers: Offer[]) => void;
+  onShowDevices: () => void;
 }
 
-export function Updates({ offers, installedVersion, busy, elevated, onInstall }: Props) {
-  const installable = useMemo(() => orderOffers(offers.filter((o) => o.decision === "newer")), [offers]);
+export function Updates({ offers, installedVersion, busy, elevated, broken, onInstall, onShowDevices }: Props) {
+  const installable = useMemo(() => offers.filter((o) => o.decision === "newer"), [offers]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<OfferSort>("source");
+  const ordered = useMemo(() => sortOffers(installable, sort), [installable, sort]);
 
   const toggle = (id: string) =>
     setPicked((s) => {
@@ -24,8 +28,23 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
   const allOn = installable.length > 0 && installable.every((o) => picked.has(o.candidate.updateId));
   const toggleAll = () => setPicked(allOn ? new Set() : new Set(installable.map((o) => o.candidate.updateId)));
   const chosen = installable.filter((o) => picked.has(o.candidate.updateId));
+  const fixes = installable.filter((o) => o.fixesProblem);
+  const chosenBytes = chosen.reduce((sum, o) => sum + o.candidate.sizeBytes, 0);
+  // Fixes first: a device that is failing right now is the reason most people open the app.
+  const pickFixes = () => setPicked(new Set(fixes.map((o) => o.candidate.updateId)));
 
   if (installable.length === 0) {
+    // "Em dia" would contradict the summary when a device is failing; send the user to that device.
+    if (broken > 0) {
+      return (
+        <div className="empty" role="status">
+          <p>Nenhuma atualização nova no Windows Update, mas {broken} dispositivo(s) estão com problema.</p>
+          <button type="button" onClick={onShowDevices}>
+            Ver dispositivos com problema
+          </button>
+        </div>
+      );
+    }
     return (
       <p className="empty" role="status">
         Nenhum driver mais novo no Windows Update. Seus drivers estão em dia para o que a Microsoft publica.
@@ -35,7 +54,17 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
 
   return (
     <>
+      <div className="filters">
+        <select aria-label="Ordenar atualizações" value={sort} onChange={(e) => setSort(e.target.value as OfferSort)}>
+          {(Object.keys(OFFER_SORTS) as OfferSort[]).map((key) => (
+            <option key={key} value={key}>
+              {OFFER_SORTS[key]}
+            </option>
+          ))}
+        </select>
+      </div>
       <table className="data-table">
+        <caption className="sr-only">Atualizações disponíveis</caption>
         <thead>
           <tr>
             <th className="check">
@@ -48,7 +77,7 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
           </tr>
         </thead>
         <tbody>
-          {installable.map((o) => {
+          {ordered.map((o) => {
             const c = o.candidate;
             return (
               <tr key={c.updateId}>
@@ -82,12 +111,19 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
         </tbody>
       </table>
       <div className="actionbar">
-        <span>{chosen.length} selecionada(s)</span>
+        <span>
+          {chosen.length} selecionada(s){chosen.length > 0 && ` · ${formatBytes(chosenBytes)}`}
+        </span>
+        {fixes.length > 0 && (
+          <button type="button" onClick={pickFixes} disabled={busy}>
+            Selecionar as que corrigem problema ({fixes.length})
+          </button>
+        )}
         <button
           type="button"
           className="primary"
           disabled={busy || chosen.length === 0 || !elevated}
-          title={elevated ? undefined : "Execute como administrador para instalar"}
+          title={elevated ? undefined : "Clique em “Reabrir como administrador” no topo para instalar"}
           onClick={() => onInstall(chosen)}
         >
           Instalar selecionadas

@@ -43,7 +43,12 @@ try {
 } catch { }
 $gpus = @(Try-Get { Get-CimInstance Win32_VideoController } | ForEach-Object {
   $mem = $vram[(S $_.Name)]
-  if (-not $mem) { $mem = N $_.AdapterRAM }
+  if (-not $mem) {
+    # At the 32-bit limit (or wrapped to 0) the real size is unknown, not 4 GB: report it as unknown.
+    $ram = N $_.AdapterRAM
+    if ($ram -ge 4294967295) { $ram = 0 }
+    $mem = $ram
+  }
   [pscustomobject]@{
     name = (S $_.Name); vendor = (S $_.AdapterCompatibility); vramBytes = [uint64]$mem
     driverVersion = (S $_.DriverVersion); driverDate = (Day $_.DriverDate)
@@ -86,7 +91,9 @@ $battery = $null
 $b = Try-Get { Get-CimInstance Win32_Battery | Select-Object -First 1 }
 if ($b) {
   $battery = [pscustomobject]@{
-    name = (S $b.Name); chargePercent = [int](N $b.EstimatedChargeRemaining); statusCode = [int](N $b.BatteryStatus)
+    name = (S $b.Name); statusCode = [int](N $b.BatteryStatus)
+    # Null means the battery does not report a charge; 0 would read as an empty battery.
+    chargePercent = if ($null -eq $b.EstimatedChargeRemaining) { $null } else { [int]$b.EstimatedChargeRemaining }
   }
 }
 

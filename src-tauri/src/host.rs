@@ -70,13 +70,10 @@ impl WindowsHost<'_> {
     }
 
     fn lock_down(&self, dir: &Path) -> Result<()> {
-        if sys::is_reparse_point(dir) {
-            return Err(Error::Denied(format!(
-                "{} é um link/junção; recusando usar como pasta de backup",
-                dir.display()
-            )));
-        }
+        refuse_reparse(dir)?;
         // Owner first: whoever created the folder keeps implicit rights until ownership moves.
+        // /T applies to everything already inside: a backup folder a standard user planted before
+        // the first admin run would otherwise keep its attacker-set ACL, and its owner can rewrite it.
         self.tool(
             "ajuste de dono da pasta de backup",
             "icacls.exe",
@@ -84,6 +81,7 @@ impl WindowsHost<'_> {
                 dir.as_os_str(),
                 "/setowner".as_ref(),
                 "*S-1-5-32-544".as_ref(),
+                "/T".as_ref(),
             ],
         )?;
         self.tool(
@@ -91,6 +89,7 @@ impl WindowsHost<'_> {
             "icacls.exe",
             &[
                 dir.as_os_str(),
+                "/T".as_ref(),
                 "/inheritance:r".as_ref(),
                 "/grant:r".as_ref(),
                 "*S-1-5-18:(OI)(CI)F".as_ref(),
@@ -101,6 +100,79 @@ impl WindowsHost<'_> {
             ],
         )
     }
+}
+
+/// Walks path components from root to `dir`, validating that every component is a plain directory
+/// (not a junction/symlink or regular file) before creating any missing components one by one.
+pub fn ensure_plain_dir_chain(dir: &Path) -> Result<()> {
+    use std::path::Component;
+
+    let mut current = std::path::PathBuf::new();
+    for component in dir.components() {
+        match component {
+            Component::ParentDir => {
+                return Err(Error::Denied(format!(
+                    "{} contém '..'; recusando usar como pasta de backup",
+                    dir.display()
+                )));
+            }
+            Component::Prefix(prefix) => {
+                current.push(prefix.as_os_str());
+                continue;
+            }
+            Component::RootDir => {
+                current.push(component.as_os_str());
+                continue;
+            }
+            Component::CurDir => continue,
+            Component::Normal(c) => {
+                current.push(c);
+            }
+        }
+
+        if sys::is_reparse_point(&current) {
+            return Err(Error::Denied(format!(
+                "{} é um link/junção; recusando usar como pasta de backup",
+                current.display()
+            )));
+        }
+
+        match std::fs::symlink_metadata(&current) {
+            Ok(meta) => {
+                if !meta.is_dir() {
+                    return Err(Error::Denied(format!(
+                        "{} é um arquivo e não um diretório",
+                        current.display()
+                    )));
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                match std::fs::create_dir(&current) {
+                    Ok(()) => {}
+                    Err(ce) if ce.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(ce) => return Err(Error::Io(ce)),
+                }
+
+                if sys::is_reparse_point(&current) {
+                    return Err(Error::Denied(format!(
+                        "{} é um link/junção; recusando usar como pasta de backup",
+                        current.display()
+                    )));
+                }
+
+                let meta = std::fs::symlink_metadata(&current)?;
+                if !meta.is_dir() {
+                    return Err(Error::Denied(format!(
+                        "{} é um arquivo e não um diretório",
+                        current.display()
+                    )));
+                }
+            }
+            Err(e) => return Err(Error::Io(e)),
+        }
+    }
+
+    Ok(())
 }
 
 impl Host for WindowsHost<'_> {
@@ -132,7 +204,7 @@ impl Host for WindowsHost<'_> {
     }
 
     fn secure_dir(&self, dir: &Path) -> Result<()> {
-        std::fs::create_dir_all(dir)?;
+        ensure_plain_dir_chain(dir)?;
         if let Some(parent) = dir.parent() {
             self.lock_down(parent)?;
         }
@@ -140,7 +212,7 @@ impl Host for WindowsHost<'_> {
     }
 
     fn export_driver(&self, oem_inf: &str, dir: &Path) -> Result<()> {
-        std::fs::create_dir_all(dir)?;
+        ensure_plain_dir_chain(dir)?;
         self.pnputil(
             "exportação do driver",
             &["/export-driver".as_ref(), oem_inf.as_ref(), dir.as_os_str()],
@@ -186,9 +258,105 @@ impl Host for WindowsHost<'_> {
     }
 }
 
+fn refuse_reparse(dir: &Path) -> Result<()> {
+    if sys::is_reparse_point(dir) {
+        return Err(Error::Denied(format!(
+            "{} é um link/junção ou não pôde ser verificado; recusando usar como pasta de backup",
+            dir.display()
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tmp_dir(tag: &str) -> std::path::PathBuf {
+        let p =
+            std::env::temp_dir().join(format!("driverix-host-test-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    fn create_junction(link: &Path, target: &Path) -> std::io::Result<()> {
+        #[cfg(windows)]
+        {
+            let status = Command::new("cmd")
+                .args([
+                    "/c",
+                    "mklink",
+                    "/J",
+                    link.to_str().unwrap(),
+                    target.to_str().unwrap(),
+                ])
+                .status()?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "mklink failed",
+                ))
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            std::os::unix::fs::symlink(target, link)
+        }
+    }
+
+    #[test]
+    fn ensure_plain_dir_chain_creates_clean_chain() {
+        let base = tmp_dir("clean");
+        let target = base.join("a").join("b").join("backups");
+        assert!(ensure_plain_dir_chain(&target).is_ok());
+        assert!(target.is_dir());
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn ensure_plain_dir_chain_rejects_parent_dir_components() {
+        let path = Path::new("a/../b");
+        let res = ensure_plain_dir_chain(path);
+        assert!(matches!(res, Err(Error::Denied(ref msg)) if msg.contains("contém '..'")));
+    }
+
+    #[test]
+    fn ensure_plain_dir_chain_rejects_regular_file_component() {
+        let base = tmp_dir("file-comp");
+        let file_path = base.join("file.txt");
+        std::fs::write(&file_path, "not a dir").unwrap();
+        let target = file_path.join("sub");
+        let res = ensure_plain_dir_chain(&target);
+        assert!(
+            matches!(res, Err(Error::Denied(ref msg)) if msg.contains("é um arquivo e não um diretório"))
+        );
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn ensure_plain_dir_chain_refuses_junction_or_symlink_leaving_target_empty() {
+        let base = tmp_dir("junction");
+        let fake_target = base.join("fake-target");
+        std::fs::create_dir_all(&fake_target).unwrap();
+        let link_path = base.join("link-dir");
+
+        create_junction(&link_path, &fake_target).unwrap();
+
+        let target = link_path.join("backups");
+        let res = ensure_plain_dir_chain(&target);
+        assert!(matches!(res, Err(Error::Denied(ref msg)) if msg.contains("é um link/junção")));
+
+        let is_empty = std::fs::read_dir(&fake_target).unwrap().next().is_none();
+        assert!(
+            is_empty,
+            "o alvo da junção não deve conter nenhum diretório/arquivo criado"
+        );
+
+        let _ = std::fs::remove_dir_all(base);
+    }
 
     #[test]
     fn only_result_code_two_counts_as_success() {

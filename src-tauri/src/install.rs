@@ -6,7 +6,8 @@ use crate::backup::{self, Manifest};
 use crate::error::{Error, Result};
 use crate::guard::is_oem_inf;
 use crate::host::{Host, UpdateOutcome};
-use crate::model::Offer;
+use crate::matching::decide;
+use crate::model::{Decision, Device, Offer};
 use serde::Serialize;
 use std::path::Path;
 
@@ -30,8 +31,27 @@ pub struct InstallReport {
     pub reboot_required: bool,
     /// Devices of this batch that report a problem after the install.
     pub problem_devices: Vec<String>,
+    /// Devices still older than the offer that installed on them. Windows Update can report
+    /// success while the device keeps its old driver (for example, until a reboot).
+    pub stale_devices: Vec<String>,
     /// False when the post-install inventory could not run, so `problem_devices` is not proof.
     pub verified: bool,
+    /// Set when Windows Update itself failed; the backup is still listed and can be restored.
+    pub install_error: Option<String>,
+}
+
+/// Devices whose post-install version is still below the offer that targeted them.
+fn still_older(offers: &[Offer], after: &[Device]) -> Vec<String> {
+    after
+        .iter()
+        .filter(|d| {
+            offers.iter().any(|o| {
+                o.device_ids.contains(&d.instance_id)
+                    && decide(d, &o.candidate).0 == Decision::Newer
+            })
+        })
+        .map(|d| d.name.clone())
+        .collect()
 }
 
 fn ensure_restore_point(host: &dyn Host, opts: &InstallOptions) -> Result<&'static str> {
@@ -44,9 +64,20 @@ fn ensure_restore_point(host: &dyn Host, opts: &InstallOptions) -> Result<&'stat
         Ok(()) => Ok("created"),
         Err(_) if opts.allow_no_restore_point => Ok("skipped"),
         Err(e) => Err(Error::Denied(format!(
-            "Não foi possível criar o ponto de restauração ({e}). Ative a Proteção do Sistema ou confirme que aceita seguir sem ele."
+            "Não foi possível criar o ponto de restauração ({e}). Ative a Proteção do Sistema ou marque a opção para continuar sem ele."
         ))),
     }
+}
+
+/// The scan can be minutes old: a driver installed since then may make the offer a downgrade.
+fn still_newer(offer: &Offer, before: &[Device]) -> bool {
+    !offer.device_ids.is_empty()
+        && offer.device_ids.iter().all(|id| {
+            before
+                .iter()
+                .find(|d| &d.instance_id == id)
+                .is_some_and(|d| decide(d, &offer.candidate).0 == Decision::Newer)
+        })
 }
 
 pub fn install(
@@ -57,6 +88,12 @@ pub fn install(
     opts: &InstallOptions,
 ) -> Result<InstallReport> {
     let before = host.inventory()?;
+    if let Some(stale) = offers.iter().find(|o| !still_newer(o, &before)) {
+        return Err(Error::Denied(format!(
+            "'{}' não é mais novo que o driver instalado; busque de novo",
+            stale.candidate.title
+        )));
+    }
     let target_ids: Vec<String> = offers
         .iter()
         .flat_map(|o| o.device_ids.iter().cloned())
@@ -102,18 +139,24 @@ pub fn install(
         .iter()
         .map(|o| o.candidate.update_id.clone())
         .collect();
-    let outcomes = host.install_updates(&update_ids)?;
+    // The backup exists already, and the devices must still be checked: a failed Windows Update
+    // call is reported in the report rather than hiding what may have changed.
+    let (outcomes, install_error) = match host.install_updates(&update_ids) {
+        Ok(outcomes) => (outcomes, None),
+        Err(e) => (Vec::new(), Some(e.to_string())),
+    };
 
-    let (problem_devices, verified) = match host.inventory() {
+    let (problem_devices, stale_devices, verified) = match host.inventory() {
         Ok(after) => (
             after
                 .iter()
                 .filter(|d| target_ids.contains(&d.instance_id) && d.problem_code != 0)
                 .map(|d| d.name.clone())
                 .collect(),
+            still_older(offers, &after),
             true,
         ),
-        Err(_) => (Vec::new(), false),
+        Err(_) => (Vec::new(), Vec::new(), false),
     };
 
     Ok(InstallReport {
@@ -123,7 +166,9 @@ pub fn install(
         reboot_required: outcomes.iter().any(|o| o.reboot_required),
         outcomes,
         problem_devices,
+        stale_devices,
         verified,
+        install_error,
     })
 }
 
@@ -140,6 +185,8 @@ pub struct RollbackReport {
 /// manifest, so it is right even if the install was interrupted, `oemN` numbers were reused, or
 /// a previous rollback got half way. Success is judged by the driver version the devices report.
 pub fn rollback(host: &dyn Host, root: &Path, backup_id: &str) -> Result<RollbackReport> {
+    // A backup may predate every install in this session; lock the tree before trusting it.
+    host.secure_dir(root)?;
     let manifest = backup::read_manifest(root, backup_id)?;
     let dir = backup::dir_for(root, backup_id)?;
     let current = host.inventory()?;
@@ -151,9 +198,10 @@ pub fn rollback(host: &dyn Host, root: &Path, backup_id: &str) -> Result<Rollbac
     for e in &manifest.entries {
         let pkg = backup::package_dir(&dir, &e.old_inf);
         if !pkg.is_dir() {
-            report
-                .errors
-                .push(format!("{}: pasta de backup ausente", e.device_name));
+            report.errors.push(format!(
+                "{}: arquivos do backup não encontrados; este item não pode ser restaurado",
+                e.device_name
+            ));
             continue;
         }
         let mut stale: Vec<&str> = current
@@ -170,7 +218,11 @@ pub fn rollback(host: &dyn Host, root: &Path, backup_id: &str) -> Result<Rollbac
         }
         match host.add_driver(&pkg.join("*.inf")) {
             Ok(()) => attempted.push(e),
-            Err(err) => report.errors.push(format!("{}: {err}", e.device_name)),
+            // The stale package is already gone, so the device may now have no third-party driver.
+            Err(err) => report.errors.push(format!(
+                "{}: não foi possível reinstalar o driver de backup ({err}). O dispositivo pode estar sem driver de terceiros; reinstale pelo Windows Update.",
+                e.device_name
+            )),
         }
     }
     if attempted.is_empty() {
