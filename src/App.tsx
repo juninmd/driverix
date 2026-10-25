@@ -86,6 +86,11 @@ export default function App() {
           {state.message}
         </p>
       )}
+      {state.kind === "cancelled" && (
+        <p className="progress" role="status">
+          Busca cancelada.
+        </p>
+      )}
       {result?.updatesError && (
         <p className="error" role="alert">
           Não foi possível consultar o Windows Update: {result.updatesError}. Os dispositivos continuam listados.
