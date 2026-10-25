@@ -1,5 +1,5 @@
-//! Every side effect on the machine goes through `Host`, so the install/rollback flow can be
-//! tested with a fake and the real implementation stays a thin layer over PowerShell and pnputil.
+!// Every side effect on the machine goes through `Host`, so the install/rollback flow can be
+!// tested with a fake and the real implementation stays a thin layer over PowerShell and pnputil.
 
 use crate::error::{Error, Result};
 use crate::ps::{run_process, run_script, scripts};
@@ -70,12 +70,7 @@ impl WindowsHost<'_> {
     }
 
     fn lock_down(&self, dir: &Path) -> Result<()> {
-        if sys::is_reparse_point(dir) {
-            return Err(Error::Denied(format!(
-                "{} é um link/junção; recusando usar como pasta de backup",
-                dir.display()
-            )));
-        }
+        refuse_reparse(dir)?;
         // Owner first: whoever created the folder keeps implicit rights until ownership moves.
         // /T applies to everything already inside: a backup folder a standard user planted before
         // the first admin run would otherwise keep its attacker-set ACL, and its owner can rewrite it.
@@ -209,7 +204,12 @@ impl Host for WindowsHost<'_> {
     }
 
     fn secure_dir(&self, dir: &Path) -> Result<()> {
-        ensure_plain_dir_chain(dir)?;
+        // Check before creating: create_dir_all would follow a planted junction and make folders through it.
+        refuse_reparse(dir)?;
+        if let Some(parent) = dir.parent() {
+            refuse_reparse(parent)?;
+        }
+        std::fs::create_dir_all(dir)?;
         if let Some(parent) = dir.parent() {
             self.lock_down(parent)?;
         }
@@ -261,6 +261,16 @@ impl Host for WindowsHost<'_> {
             ],
         )
     }
+}
+
+fn refuse_reparse(dir: &Path) -> Result<()> {
+    if sys::is_reparse_point(dir) {
+        return Err(Error::Denied(format!(
+            "{} é um link/junção ou não pôde ser verificado; recusando usar como pasta de backup",
+            dir.display()
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
