@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Offer } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
+import { OFFER_SORTS, type OfferSort, sortOffers } from "../lib/offerSort";
 
 interface Props {
   offers: Offer[];
@@ -13,6 +14,8 @@ interface Props {
 export function Updates({ offers, installedVersion, busy, elevated, onInstall }: Props) {
   const installable = useMemo(() => offers.filter((o) => o.decision === "newer"), [offers]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<OfferSort>("source");
+  const ordered = useMemo(() => sortOffers(installable, sort), [installable, sort]);
 
   const toggle = (id: string) =>
     setPicked((s) => {
@@ -34,6 +37,15 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
 
   return (
     <>
+      <div className="filters">
+        <select aria-label="Ordenar atualizações" value={sort} onChange={(e) => setSort(e.target.value as OfferSort)}>
+          {(Object.keys(OFFER_SORTS) as OfferSort[]).map((key) => (
+            <option key={key} value={key}>
+              {OFFER_SORTS[key]}
+            </option>
+          ))}
+        </select>
+      </div>
       <table className="data-table">
         <thead>
           <tr>
@@ -47,7 +59,7 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
           </tr>
         </thead>
         <tbody>
-          {installable.map((o) => {
+          {ordered.map((o) => {
             const c = o.candidate;
             return (
               <tr key={c.updateId}>
