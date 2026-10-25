@@ -7,10 +7,12 @@ interface Props {
   installedVersion: (offer: Offer) => string;
   busy: boolean;
   elevated: boolean;
+  broken: number;
   onInstall: (offers: Offer[]) => void;
+  onShowDevices: () => void;
 }
 
-export function Updates({ offers, installedVersion, busy, elevated, onInstall }: Props) {
+export function Updates({ offers, installedVersion, busy, elevated, broken, onInstall, onShowDevices }: Props) {
   const installable = useMemo(() => offers.filter((o) => o.decision === "newer"), [offers]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
@@ -25,6 +27,17 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
   const chosen = installable.filter((o) => picked.has(o.candidate.updateId));
 
   if (installable.length === 0) {
+    // "Em dia" would contradict the summary when a device is failing; send the user to that device.
+    if (broken > 0) {
+      return (
+        <div className="empty" role="status">
+          <p>Nenhuma atualização nova no Windows Update, mas {broken} dispositivo(s) estão com problema.</p>
+          <button type="button" onClick={onShowDevices}>
+            Ver dispositivos com problema
+          </button>
+        </div>
+      );
+    }
     return (
       <p className="empty" role="status">
         Nenhum driver mais novo no Windows Update. Seus drivers estão em dia para o que a Microsoft publica.

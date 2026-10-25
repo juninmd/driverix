@@ -136,7 +136,9 @@ export default function App() {
               installedVersion={installedVersion}
               busy={running || installing !== null}
               elevated={status.elevated}
+              broken={broken}
               onInstall={setInstalling}
+              onShowDevices={() => setTab("devices")}
             />
           ) : (
             <p className="empty">Clique em “Buscar atualizações” para começar.</p>
