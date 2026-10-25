@@ -26,7 +26,8 @@ export function Hardware({ state, onLoad }: Props) {
       </p>
     );
   }
-  if (state.kind === "error") {
+  // Without a previous view there is nothing to keep on screen, so the error takes the whole panel.
+  if (state.kind === "error" && !state.previous) {
     return (
       <div className="error" role="alert">
         {state.message}{" "}
@@ -57,6 +58,14 @@ export function Hardware({ state, onLoad }: Props) {
 
   return (
     <div className="hw">
+      {state.kind === "error" && (
+        <div className="error" role="alert">
+          Não foi possível atualizar: {state.message}{" "}
+          <button type="button" onClick={onLoad}>
+            Tentar de novo
+          </button>
+        </div>
+      )}
       <nav className="hw-nav" aria-label="Categorias de hardware">
         {sections.map((s) => (
           <button
