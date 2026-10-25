@@ -124,6 +124,13 @@ export function Devices({ devices }: { devices: Device[] }) {
               </td>
             </tr>
           ))}
+          {shown.length === 0 && (
+            <tr>
+              <td colSpan={6} className="empty" role="status">
+                {devices.length === 0 ? "Nenhum dispositivo listado." : "Nenhum dispositivo corresponde aos filtros."}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </>
