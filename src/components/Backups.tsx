@@ -59,7 +59,9 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
       )}
       {result && (
         <p className={result.errors.length ? "error" : "okbox"} role="status">
-          {result.restored} driver(s) restaurado(s).{result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}`}
+          {result.restored} driver(s) restaurado(s).
+          {result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}.`}
+          {result.restored > 0 && " A lista de atualizações ainda mostra o estado anterior: busque de novo."}
         </p>
       )}
       <p className="summary">{list.length} backup(s), do mais recente ao mais antigo.</p>
