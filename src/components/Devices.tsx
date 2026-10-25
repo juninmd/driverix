@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Device } from "../lib/api";
 import { DEVICE_SORTS, type DeviceSort, devicesToTsv, sortDevices } from "../lib/devices";
 import { formatDate, isOldDriver, problemText } from "../lib/format";
@@ -10,6 +10,10 @@ export function Devices({ devices }: { devices: Device[] }) {
   const [cls, setCls] = useState("");
   const [sort, setSort] = useState<DeviceSort>("inventory");
   const [copied, setCopied] = useState<"" | "ok" | "fail">("");
+  const copiedTimer = useRef<number | undefined>(undefined);
+
+  // A second click must restart the message, and unmount must not leave a timer behind.
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
 
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
   const shown = useMemo(() => {
@@ -68,7 +72,8 @@ export function Devices({ devices }: { devices: Device[] }) {
             } catch {
               setCopied("fail");
             }
-            setTimeout(() => setCopied(""), 2500);
+            window.clearTimeout(copiedTimer.current);
+            copiedTimer.current = window.setTimeout(() => setCopied(""), 2500);
           }}
           disabled={shown.length === 0}
         >
