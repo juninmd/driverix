@@ -34,6 +34,8 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
       onDone();
     } catch (e) {
       setError(String(e));
+      // The backup is written before Windows Update runs, so a failed install can still leave one to restore.
+      onDone();
     } finally {
       setRunning(false);
     }
@@ -143,9 +145,12 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
         </p>
       )}
       {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
+        <>
+          <p className="error" role="alert">
+            {error}
+          </p>
+          <p>Se um backup foi criado antes da falha, ele aparece na aba Backups.</p>
+        </>
       )}
     </Dialog>
   );
