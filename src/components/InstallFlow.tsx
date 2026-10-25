@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { api, type InstallReport, type Offer } from "../lib/api";
+import { hresultHex } from "../lib/format";
 import { Dialog } from "./Dialog";
 
 interface Props {
@@ -60,7 +61,23 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
           {report.outcomes.length - failed.length} de {report.outcomes.length} instalada(s). {report.backedUp} pacote(s)
           com backup.
         </p>
-        {failed.length > 0 && <p className="error">{failed.length} falharam; veja o Windows Update para detalhes.</p>}
+        {failed.length > 0 && (
+          <>
+            <p className="error">{failed.length} falharam:</p>
+            <ul className="plain">
+              {failed.map((o) => {
+                const id = o.updateId.toLowerCase();
+                const title = offers.find((x) => x.candidate.updateId.toLowerCase() === id)?.candidate.title;
+                return (
+                  <li key={o.updateId}>
+                    <strong>{title ?? o.updateId}</strong> · {hresultHex(o.hresult)}
+                    {o.note && `: ${o.note}`}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
         {!report.verified && <p className="error">Não foi possível verificar os dispositivos depois da instalação.</p>}
         {report.problemDevices.length > 0 && (
           <p className="error">
@@ -100,6 +117,11 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
         <input type="checkbox" checked={skipRestore} onChange={(e) => setSkipRestore(e.target.checked)} /> Continuar
         mesmo se não for possível criar o ponto de restauração
       </label>
+      {running && (
+        <p role="status" aria-live="polite">
+          Instalando… pode levar alguns minutos. Não feche o Driverix.
+        </p>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
