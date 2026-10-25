@@ -59,9 +59,12 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
       )}
       {result && (
         <p className={result.errors.length ? "error" : "okbox"} role="status">
-          {result.restored} driver(s) restaurado(s).{result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}`}
+          {result.restored} driver(s) restaurado(s).
+          {result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}.`}
+          {result.restored > 0 && " A lista de atualizações ainda mostra o estado anterior: busque de novo."}
         </p>
       )}
+      <p className="summary">{list.length} backup(s), do mais recente ao mais antigo.</p>
       <ul className="cards">
         {list.map((b) => (
           <li key={b.id}>
@@ -72,7 +75,12 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               </div>
               <div className="sub mono">{b.entries.map((e) => `${e.deviceName} ${e.oldVersion}`).join(" · ")}</div>
             </div>
-            <button type="button" disabled={!elevated || busy || b.entries.length === 0} onClick={() => setTarget(b)}>
+            <button
+              type="button"
+              title={elevated ? undefined : "Clique em “Reabrir como administrador” no topo para restaurar"}
+              disabled={!elevated || busy || b.entries.length === 0}
+              onClick={() => setTarget(b)}
+            >
               Restaurar
             </button>
           </li>
