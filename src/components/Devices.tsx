@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Device } from "../lib/api";
+import { DEVICE_SORTS, type DeviceSort, sortDevices } from "../lib/devices";
 import { formatDate, isOldDriver, problemText } from "../lib/format";
 
 export function Devices({ devices }: { devices: Device[] }) {
@@ -7,11 +8,12 @@ export function Devices({ devices }: { devices: Device[] }) {
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [onlyOld, setOnlyOld] = useState(false);
   const [cls, setCls] = useState("");
+  const [sort, setSort] = useState<DeviceSort>("inventory");
 
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return devices.filter(
+    const filtered = devices.filter(
       (d) =>
         (!onlyProblems || d.problemCode !== 0) &&
         (!onlyOld || isOldDriver(d.date, d.provider)) &&
@@ -19,7 +21,8 @@ export function Devices({ devices }: { devices: Device[] }) {
         (!q ||
           `${d.name} ${d.manufacturer} ${d.provider} ${d.vendor} ${d.hint} ${d.instanceId}`.toLowerCase().includes(q)),
     );
-  }, [devices, query, onlyProblems, onlyOld, cls]);
+    return sortDevices(filtered, sort);
+  }, [devices, query, onlyProblems, onlyOld, cls, sort]);
 
   return (
     <>
@@ -35,6 +38,13 @@ export function Devices({ devices }: { devices: Device[] }) {
           <option value="">Todas as classes</option>
           {classes.map((c) => (
             <option key={c}>{c}</option>
+          ))}
+        </select>
+        <select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as DeviceSort)}>
+          {Object.entries(DEVICE_SORTS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
           ))}
         </select>
         <label>
@@ -78,7 +88,14 @@ export function Devices({ devices }: { devices: Device[] }) {
                   </span>
                 )}
               </td>
-              <td className={d.problemCode === 0 ? "ok" : "bad"}>{problemText(d.problemCode)}</td>
+              <td className={d.problemCode === 0 ? "ok" : "bad"}>
+                {problemText(d.problemCode)}
+                {d.version && !d.signed && (
+                  <span className="chip warn" title="O Windows não reporta assinatura digital para o driver instalado">
+                    sem assinatura
+                  </span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
