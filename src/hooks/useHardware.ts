@@ -6,7 +6,8 @@ export type HardwareState =
   /** `previous` keeps the last view on screen while a refresh runs. */
   | { kind: "loading"; previous?: HardwareView }
   | { kind: "done"; view: HardwareView }
-  | { kind: "error"; message: string };
+  /** `previous` is the last good view, so a failed refresh does not blank the panel. */
+  | { kind: "error"; message: string; previous?: HardwareView };
 
 export function useHardware() {
   const [state, setState] = useState<HardwareState>({ kind: "idle" });
@@ -24,7 +25,11 @@ export function useHardware() {
     try {
       setState({ kind: "done", view: await api.loadHardware() });
     } catch (e) {
-      setState({ kind: "error", message: String(e) });
+      setState((s) => ({
+        kind: "error",
+        message: String(e),
+        previous: s.kind === "loading" ? s.previous : undefined,
+      }));
     } finally {
       inFlight.current = false;
     }
