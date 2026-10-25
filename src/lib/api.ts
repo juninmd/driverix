@@ -71,6 +71,8 @@ export interface InstallReport {
   outcomes: UpdateOutcome[];
   rebootRequired: boolean;
   problemDevices: string[];
+  /** Devices still on an older driver than the one offered, though Windows Update reported success. */
+  staleDevices: string[];
   verified: boolean;
 }
 

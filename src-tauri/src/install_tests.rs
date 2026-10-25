@@ -297,6 +297,25 @@ fn a_driver_installed_since_the_scan_blocks_the_install_before_any_change() {
 }
 
 #[test]
+fn a_device_still_on_its_old_driver_is_reported_as_stale() {
+    let r = root("stale-after");
+    // Windows Update said success, but the device still reports 1.0 against the 2.0 offer.
+    let f = with_inventories(vec![
+        Some(vec![dev("oem7.inf", 0)]),
+        Some(vec![dev("oem7.inf", 0)]),
+    ]);
+    let rep = install(&f, &[offer()], &r, 10, &InstallOptions::default()).unwrap();
+    assert_eq!(rep.stale_devices, vec!["NIC"]);
+}
+
+#[test]
+fn a_device_on_the_offered_version_is_not_stale() {
+    let r = root("stale-none");
+    let rep = install(&fake(), &[offer()], &r, 10, &InstallOptions::default()).unwrap();
+    assert!(rep.stale_devices.is_empty());
+}
+
+#[test]
 fn reports_reboot_need_and_a_verified_clean_result() {
     let r = root("ok");
     let rep = install(&fake(), &[offer()], &r, 10, &InstallOptions::default()).unwrap();

@@ -31,8 +31,25 @@ pub struct InstallReport {
     pub reboot_required: bool,
     /// Devices of this batch that report a problem after the install.
     pub problem_devices: Vec<String>,
+    /// Devices still older than the offer that installed on them. Windows Update can report
+    /// success while the device keeps its old driver (for example, until a reboot).
+    pub stale_devices: Vec<String>,
     /// False when the post-install inventory could not run, so `problem_devices` is not proof.
     pub verified: bool,
+}
+
+/// Devices whose post-install version is still below the offer that targeted them.
+fn still_older(offers: &[Offer], after: &[Device]) -> Vec<String> {
+    after
+        .iter()
+        .filter(|d| {
+            offers.iter().any(|o| {
+                o.device_ids.contains(&d.instance_id)
+                    && decide(d, &o.candidate).0 == Decision::Newer
+            })
+        })
+        .map(|d| d.name.clone())
+        .collect()
 }
 
 fn ensure_restore_point(host: &dyn Host, opts: &InstallOptions) -> Result<&'static str> {
@@ -122,16 +139,17 @@ pub fn install(
         .collect();
     let outcomes = host.install_updates(&update_ids)?;
 
-    let (problem_devices, verified) = match host.inventory() {
+    let (problem_devices, stale_devices, verified) = match host.inventory() {
         Ok(after) => (
             after
                 .iter()
                 .filter(|d| target_ids.contains(&d.instance_id) && d.problem_code != 0)
                 .map(|d| d.name.clone())
                 .collect(),
+            still_older(offers, &after),
             true,
         ),
-        Err(_) => (Vec::new(), false),
+        Err(_) => (Vec::new(), Vec::new(), false),
     };
 
     Ok(InstallReport {
@@ -141,6 +159,7 @@ pub fn install(
         reboot_required: outcomes.iter().any(|o| o.reboot_required),
         outcomes,
         problem_devices,
+        stale_devices,
         verified,
     })
 }
