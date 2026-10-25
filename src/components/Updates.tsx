@@ -84,11 +84,16 @@ export function Updates({ offers, installedVersion, busy, elevated, onInstall }:
           type="button"
           className="primary"
           disabled={busy || chosen.length === 0 || !elevated}
-          title={elevated ? undefined : "Execute como administrador para instalar"}
+          aria-describedby={elevated ? undefined : "install-admin-hint"}
           onClick={() => onInstall(chosen)}
         >
           Instalar selecionadas
         </button>
+        {!elevated && (
+          <span id="install-admin-hint" className="sub">
+            Execute como administrador para instalar.
+          </span>
+        )}
       </div>
     </>
   );

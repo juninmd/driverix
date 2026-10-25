@@ -62,6 +62,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
           {result.restored} driver(s) restaurado(s).{result.errors.length > 0 && ` Falhas: ${result.errors.join("; ")}`}
         </p>
       )}
+      {!elevated && <p className="sub">Execute como administrador para restaurar um backup.</p>}
       <ul className="cards">
         {list.map((b) => (
           <li key={b.id}>
