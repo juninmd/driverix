@@ -72,6 +72,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
           {result.restored > 0 && " A lista de atualizações ainda mostra o estado anterior: busque de novo."}
         </p>
       )}
+      {!elevated && <p className="sub">Execute como administrador para restaurar um backup.</p>}
       <p className="summary">{list.length} backup(s), do mais recente ao mais antigo.</p>
       <ul className="cards">
         {list.map((b) => (
