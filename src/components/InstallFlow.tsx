@@ -46,6 +46,8 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
 
   if (report) {
     const failed = report.outcomes.filter((o) => o.resultCode !== 2);
+    // A selected update the Windows Update search no longer returns gets no outcome row at all.
+    const missing = Math.max(0, offers.length - report.outcomes.length);
     return (
       <Dialog
         title="Instalação concluída"
@@ -58,9 +60,14 @@ export function InstallFlow({ offers, onClose, onDone }: Props) {
       >
         <p>{RESTORE_TEXT[report.restorePoint]}</p>
         <p>
-          {report.outcomes.length - failed.length} de {report.outcomes.length} instalada(s). {report.backedUp} pacote(s)
-          com backup.
+          {Math.max(0, offers.length - failed.length - missing)} de {offers.length} instalada(s). {report.backedUp}{" "}
+          pacote(s) com backup.
         </p>
+        {missing > 0 && (
+          <p className="error">
+            {missing} não foi(ram) encontrada(s) pelo Windows Update na hora da instalação e não foi(ram) instalada(s).
+          </p>
+        )}
         {failed.length > 0 && (
           <>
             <p className="error">{failed.length} falharam:</p>
