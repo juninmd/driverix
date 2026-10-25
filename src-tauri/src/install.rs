@@ -33,6 +33,8 @@ pub struct InstallReport {
     pub problem_devices: Vec<String>,
     /// False when the post-install inventory could not run, so `problem_devices` is not proof.
     pub verified: bool,
+    /// Set when Windows Update itself failed; the backup is still listed and can be restored.
+    pub install_error: Option<String>,
 }
 
 fn ensure_restore_point(host: &dyn Host, opts: &InstallOptions) -> Result<&'static str> {
@@ -120,7 +122,12 @@ pub fn install(
         .iter()
         .map(|o| o.candidate.update_id.clone())
         .collect();
-    let outcomes = host.install_updates(&update_ids)?;
+    // The backup exists already, and the devices must still be checked: a failed Windows Update
+    // call is reported in the report rather than hiding what may have changed.
+    let (outcomes, install_error) = match host.install_updates(&update_ids) {
+        Ok(outcomes) => (outcomes, None),
+        Err(e) => (Vec::new(), Some(e.to_string())),
+    };
 
     let (problem_devices, verified) = match host.inventory() {
         Ok(after) => (
@@ -142,6 +149,7 @@ pub fn install(
         outcomes,
         problem_devices,
         verified,
+        install_error,
     })
 }
 

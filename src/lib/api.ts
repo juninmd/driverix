@@ -72,6 +72,8 @@ export interface InstallReport {
   rebootRequired: boolean;
   problemDevices: string[];
   verified: boolean;
+  /** Set when Windows Update itself failed; the backup is still there. */
+  installError: string | null;
 }
 
 export interface BackupEntry {
