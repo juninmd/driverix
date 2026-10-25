@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::guard::is_guid;
 use crate::matching::version_from_title;
 use crate::model::Candidate;
@@ -11,7 +11,9 @@ pub fn parse_candidates(json: &str) -> Result<Vec<Candidate>> {
     if json.is_empty() {
         return Ok(Vec::new());
     }
-    let mut list: Vec<Candidate> = serde_json::from_str(json)?;
+    // serde's own message is English and says where the JSON broke; the user needs the outcome instead.
+    let mut list: Vec<Candidate> = serde_json::from_str(json)
+        .map_err(|_| Error::Parse("a busca não devolveu uma lista válida".into()))?;
     // Only well-formed GUIDs may become install targets later.
     list.retain(|c| is_guid(&c.update_id) && !c.hardware_id.is_empty());
     for c in &mut list {
@@ -37,6 +39,15 @@ mod tests {
     use super::*;
 
     const GOOD: &str = "0b9a4d52-3f3c-4a49-9d8e-2f6f4d1c7a10";
+
+    #[test]
+    fn a_malformed_search_result_is_reported_in_portuguese_without_serde_text() {
+        let err = parse_candidates("not json").unwrap_err().to_string();
+        assert_eq!(
+            err,
+            "dados inválidos (a busca não devolveu uma lista válida)"
+        );
+    }
 
     fn row(id: &str, hw: &str, title: &str) -> String {
         format!(
