@@ -5,6 +5,7 @@ import { Dialog } from "./Dialog";
 
 export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKey: number }) {
   const [list, setList] = useState<Backup[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [target, setTarget] = useState<Backup | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RollbackReport | null>(null);
@@ -12,13 +13,17 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is the reload trigger
   useEffect(() => {
-    api.backups().then(setList, (e) => setError(String(e)));
+    api
+      .backups()
+      .then(setList, (e) => setError(String(e)))
+      .finally(() => setLoaded(true));
   }, [refreshKey]);
 
   const close = useCallback(() => setTarget(null), []);
 
+  // Restoring re-installs drivers as admin; a second click must not start another rollback.
   const run = async () => {
-    if (!target) return;
+    if (!target || busy) return;
     setBusy(true);
     setError("");
     try {
@@ -31,6 +36,13 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
     }
   };
 
+  if (!loaded && !error) {
+    return (
+      <p className="empty" role="status">
+        Carregando backups…
+      </p>
+    );
+  }
   if (list.length === 0 && !error) {
     return <p className="empty">Nenhum backup ainda. Um backup é criado antes de cada instalação.</p>;
   }
@@ -72,7 +84,7 @@ export function Backups({ elevated, refreshKey }: { elevated: boolean; refreshKe
               <button type="button" onClick={close}>
                 Cancelar
               </button>
-              <button type="button" className="primary" onClick={run}>
+              <button type="button" className="primary" disabled={busy} onClick={run}>
                 Restaurar
               </button>
             </>
