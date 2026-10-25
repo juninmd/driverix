@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { ageYears, formatBytes, formatDate, isOldDriver, problemText } from "./format";
+import { ageYears, formatBytes, formatDate, hresultHex, isOldDriver, problemText } from "./format";
+
+describe("hresultHex", () => {
+  test("shows the unsigned form Windows documents", () => {
+    // E_ACCESSDENIED arrives from the backend as a negative i32.
+    expect(hresultHex(-2147024891)).toBe("0x80070005");
+    expect(hresultHex(0)).toBe("0x00000000");
+  });
+});
 
 describe("formatBytes", () => {
   test("scales and rounds", () => {

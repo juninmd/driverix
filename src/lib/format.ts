@@ -30,6 +30,11 @@ export function problemText(code: number): string {
   return code === 0 ? "OK" : (PROBLEMS[code] ?? `Problema (código ${code})`);
 }
 
+/** Windows reports HRESULTs as signed 32-bit ints; users and Microsoft's docs use the unsigned hex form. */
+export function hresultHex(code: number): string {
+  return `0x${(code >>> 0).toString(16).toUpperCase().padStart(8, "0")}`;
+}
+
 export function formatUnix(secs: number): string {
   return new Date(secs * 1000).toLocaleString("pt-BR");
 }
