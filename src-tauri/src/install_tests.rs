@@ -368,7 +368,7 @@ fn rollback_deletes_what_the_device_uses_now_then_restores_and_verifies() {
     ]);
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!((rep.restored, rep.errors.len()), (1, 0));
-    assert_eq!(f.calls(), ["delete oem9.inf", "add *.inf"]);
+    assert_eq!(f.calls(), ["secure", "delete oem9.inf", "add *.inf"]);
 }
 
 #[test]
@@ -386,7 +386,7 @@ fn rollback_works_even_if_the_install_never_recorded_the_new_package() {
     ]);
     let rep = rollback(&g, &r, "10").unwrap();
     assert_eq!(rep.restored, 1);
-    assert_eq!(g.calls(), ["delete oem9.inf", "add *.inf"]);
+    assert_eq!(g.calls(), ["secure", "delete oem9.inf", "add *.inf"]);
 }
 
 #[test]
@@ -399,7 +399,7 @@ fn rollback_can_be_retried_after_the_delete_already_happened() {
     ]);
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!(rep.restored, 1);
-    assert_eq!(f.calls(), ["add *.inf"]);
+    assert_eq!(f.calls(), ["secure", "add *.inf"]);
 }
 
 #[test]
@@ -435,7 +435,7 @@ fn a_failed_delete_skips_the_add_and_reports() {
     };
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!((rep.restored, rep.errors.len()), (0, 1));
-    assert_eq!(f.calls(), ["delete oem9.inf"]);
+    assert_eq!(f.calls(), ["secure", "delete oem9.inf"]);
 }
 
 #[test]
@@ -445,7 +445,8 @@ fn rollback_with_a_missing_backup_folder_reports_instead_of_deleting() {
     let f = with_inventories(vec![Some(vec![dev("oem9.inf", 0)])]);
     let rep = rollback(&f, &r, "10").unwrap();
     assert_eq!((rep.restored, rep.errors.len()), (0, 1));
-    assert!(f.calls().is_empty());
+    // Nothing is deleted or re-added when the package folder is gone; locking the root is allowed.
+    assert!(f.calls().iter().all(|c| c == "secure"), "{:?}", f.calls());
 }
 
 impl Device {

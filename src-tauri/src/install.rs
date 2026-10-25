@@ -158,6 +158,8 @@ pub struct RollbackReport {
 /// manifest, so it is right even if the install was interrupted, `oemN` numbers were reused, or
 /// a previous rollback got half way. Success is judged by the driver version the devices report.
 pub fn rollback(host: &dyn Host, root: &Path, backup_id: &str) -> Result<RollbackReport> {
+    // A backup may predate every install in this session; lock the tree before trusting it.
+    host.secure_dir(root)?;
     let manifest = backup::read_manifest(root, backup_id)?;
     let dir = backup::dir_for(root, backup_id)?;
     let current = host.inventory()?;
