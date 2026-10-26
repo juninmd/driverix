@@ -197,10 +197,11 @@ pub fn rollback(host: &dyn Host, root: &Path, backup_id: &str) -> Result<Rollbac
     let mut attempted = Vec::new();
     for e in &manifest.entries {
         let pkg = backup::package_dir(&dir, &e.old_inf);
-        if !pkg.is_dir() {
+        if !backup::package_is_restorable(&pkg) {
             report.errors.push(format!(
-                "{}: arquivos do backup não encontrados; este item não pode ser restaurado",
-                e.device_name
+                "{}: backup incompleto (nenhum .inf em {}); o driver atual foi mantido",
+                e.device_name,
+                pkg.display()
             ));
             continue;
         }
