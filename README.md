@@ -93,6 +93,8 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- hardware   
 cargo run --manifest-path src-tauri/Cargo.toml --bin driverix-cli -- scan --json    # ofertas
 ```
 
+Códigos de saída do `scan`: `0` ok; `3` lista lida mas o Windows Update falhou (sem ofertas não significa tudo em dia).
+
 ## ⚠️ Limites conhecidos
 
 - **Cobertura = o que a Microsoft publica.** Drivers de GPU lançados ontem pela NVIDIA, AMD ou Intel podem ainda não estar no Windows Update. Fontes de fabricante ficaram de fora de propósito: os endpoints são não documentados ou com termos que restringem automação.
