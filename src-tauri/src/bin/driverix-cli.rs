@@ -1,7 +1,11 @@
 //! Headless, read-only front end: `driverix-cli devices|hardware|scan [--json]`. It never installs;
 //! installing stays in the app, where the confirmation and backup flow live.
 
-use driverix_lib::{hardware, inventory, model::Decision, scan::scan_all};
+use driverix_lib::{
+    hardware, inventory,
+    model::Decision,
+    scan::{scan_all, ScanResult},
+};
 use std::process::ExitCode;
 use std::sync::atomic::AtomicBool;
 
@@ -31,8 +35,11 @@ fn main() -> ExitCode {
             Err(e) => fail(e),
         },
         Some("scan") => match scan_all(&never, |p| eprintln!("... {p}")) {
-            Ok(r) if json => print_json(&r),
+            Ok(r) if json => print_json_with(&r, exit_code_for(&r)),
             Ok(r) => {
+                if let Some(msg) = &r.updates_error {
+                    eprintln!("aviso: não foi possível consultar o Windows Update: {msg}");
+                }
                 let newer = r
                     .offers
                     .iter()
@@ -46,7 +53,7 @@ fn main() -> ExitCode {
                 for o in r.offers.iter().filter(|o| o.installable()) {
                     println!("  {} ({})", o.candidate.title, o.reason);
                 }
-                ExitCode::SUCCESS
+                ExitCode::from(exit_code_for(&r))
             }
             Err(e) => fail(e),
         },
@@ -57,11 +64,25 @@ fn main() -> ExitCode {
     }
 }
 
+/// 0 = scan completed; 3 = devices listed but Windows Update could not be queried, so "no offers"
+/// must not be read as "everything is up to date".
+fn exit_code_for(r: &ScanResult) -> u8 {
+    if r.updates_error.is_some() {
+        3
+    } else {
+        0
+    }
+}
+
 fn print_json<T: serde::Serialize>(v: &T) -> ExitCode {
+    print_json_with(v, 0)
+}
+
+fn print_json_with<T: serde::Serialize>(v: &T, code: u8) -> ExitCode {
     match serde_json::to_string_pretty(v) {
         Ok(s) => {
             println!("{s}");
-            ExitCode::SUCCESS
+            ExitCode::from(code)
         }
         Err(e) => fail(e),
     }
@@ -70,4 +91,23 @@ fn print_json<T: serde::Serialize>(v: &T) -> ExitCode {
 fn fail(e: impl std::fmt::Display) -> ExitCode {
     eprintln!("erro: {e}");
     ExitCode::FAILURE
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scan(err: Option<&str>) -> ScanResult {
+        ScanResult {
+            devices: Vec::new(),
+            offers: Vec::new(),
+            updates_error: err.map(String::from),
+        }
+    }
+
+    #[test]
+    fn a_failed_windows_update_query_is_not_reported_as_success() {
+        assert_eq!(exit_code_for(&scan(Some("serviço parado"))), 3);
+        assert_eq!(exit_code_for(&scan(None)), 0);
+    }
 }

@@ -37,6 +37,19 @@ pub fn package_dir(backup: &Path, inf: &str) -> PathBuf {
     backup.join(inf.trim_end_matches(".inf").trim_end_matches(".INF"))
 }
 
+/// `pnputil` installs `*.inf` from the top of the package folder, so a folder without one cannot
+/// restore anything. Checked before a rollback deletes the driver that is working now.
+pub fn package_is_restorable(pkg: &Path) -> bool {
+    std::fs::read_dir(pkg).is_ok_and(|entries| {
+        entries.flatten().any(|e| {
+            e.file_type().is_ok_and(|t| t.is_file())
+                && e.path()
+                    .extension()
+                    .is_some_and(|x| x.eq_ignore_ascii_case("inf"))
+        })
+    })
+}
+
 /// One entry per third-party package in use. Inbox drivers are skipped: they are not in the store
 /// as `oem*.inf`, so the restore point is their only way back.
 pub fn plan_entries(devices: &[Device], target_ids: &[String]) -> Vec<Entry> {

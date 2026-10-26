@@ -395,6 +395,22 @@ fn rollback_deletes_what_the_device_uses_now_then_restores_and_verifies() {
 }
 
 #[test]
+fn rollback_keeps_the_current_driver_when_the_backup_package_has_no_inf() {
+    // The package folder exists but lost its .inf: pnputil would have nothing to install, so the
+    // current (working) driver must not be removed first.
+    let r = installed("no-inf");
+    let pkg = backup::package_dir(&r.join("10"), "oem7.inf");
+    std::fs::remove_dir_all(&pkg).unwrap();
+    std::fs::create_dir_all(&pkg).unwrap();
+    std::fs::write(pkg.join("readme.txt"), b"x").unwrap();
+    let f = with_inventories(vec![Some(vec![dev("oem9.inf", 0)])]);
+    let rep = rollback(&f, &r, "10").unwrap();
+    assert_eq!(rep.restored, 0);
+    assert_eq!(rep.errors.len(), 1);
+    assert_eq!(f.calls(), ["secure"]);
+}
+
+#[test]
 fn rollback_works_even_if_the_install_never_recorded_the_new_package() {
     // Install interrupted: the manifest holds only the old package; the device already runs oem9.
     let r = root("interrupted");
