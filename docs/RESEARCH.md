@@ -1,10 +1,12 @@
 # Research notes: how driver updaters work
 
-Why Driverix is built the way it is. Everything here comes from public sources; no proprietary
-binary (Driver Easy, CCleaner, Driver Booster, ...) was downloaded, run or decompiled, and their
-EULAs forbid it. Where the vendors document nothing, this file says UNCONFIRMED instead of guessing.
+Why Driverix is built the way it is. Sections 1-7 come from public sources; no proprietary binary
+was downloaded, run or decompiled for them. The EULA question was never checked against the actual
+EULA texts. Since 2026-10-28 the owner explicitly allows static analysis (decompilation) of Driver
+Booster Free to find features (section 8); that decision is the owner's, it does not extend to other
+products. Where the vendors document nothing, this file says UNCONFIRMED instead of guessing.
 
-Scope: public sources only (Microsoft Learn, vendor support pages, search snippets). No proprietary binary was downloaded or decompiled.
+Scope of sections 1-7: public sources only (Microsoft Learn, vendor support pages, search snippets).
 Legend: **[V]** verified by fetching the page in this session. **[S]** seen only in a search snippet. **[U]** UNCONFIRMED (could not verify; where I looked is listed).
 
 Fetch failures this session (HTTP 404, so not used): the SDI Origin GitHub URL I guessed, the `win32/cimwin32prov` and `whqlprov` Win32_PnPSignedDriver URLs I tried directly, the Win32_PnPSignedDriver class page via search snippet only, and the `introduction-to-windows-driver-signing` page.
@@ -196,3 +198,147 @@ Source: public GitHub search (`driver-updater` topic) and each project's README 
 | DriverUpdate-Pro | Electron | Only links to manufacturer download pages. | No. |
 
 Takeaways applied: decode hardware IDs offline so unnamed devices are still identifiable; flag old third-party drivers (Microsoft inbox drivers excluded, their 2006 dates are by design); give users an AIDA64-like hardware overview they can copy into a forum post. Hardware vendor ID tables come from the public PCI-SIG and USB-IF registries; extend them in `vendors.rs`, the test there rejects duplicates and malformed IDs.
+
+### 7.1 More projects (GitHub API search + READMEs, 2026-10-28)
+
+Metadata from `gh api search/repositories` and each README; no code was run. Licenses matter: GPL
+projects are read for ideas only, nothing is copied.
+
+| Project | Stack / license | What it adds beyond Driverix | Verdict |
+|---|---|---|---|
+| lostindark/DriverStoreExplorer (RAPR, ~12k stars, active) | C#, GPL-2.0 | Driver-store browser: smart cleanup of old versions, three backends (native, DISM, PnPUtil), offline images, CSV export, device association. | Idea: "old versions" cleanup for the backups and store. |
+| Hanatarou/DriverStoreManager | Rust, MIT | Marks a package *Old*, or *Review* when version and date disagree about which is newer; backup verified file by file with SHA-256 plus a `manifest.txt` listing the devices; re-checks the live store right before removal because Windows reuses `oemNN` numbers. | **Closest in spirit.** Adopt the version-vs-date disagreement rule and per-file SHA-256 verification of exports. |
+| raincleaner/RainDriver | README only for a closed commercial product | Export with checksums and a restore order (network, then storage); Device Manager code explainer; change timeline; OEM catalogs (Dell, HP, Lenovo) as sources. | Ideas only. OEM catalog terms are **UNCONFIRMED**. |
+| Dev-TheNorthFace/Driver-Backup-Manager | README only | DISM export to external drive, offline restore, inventory file. | Confirms the backup/restore need. |
+| HawaiiBeach/TinyNvidiaUpdateChecker (~1.9k stars, active) | C#, GPL-3.0 | NVIDIA version check and download. | No: depends on NVIDIA endpoints (section 3.4). |
+| techygeekshome/DriverGeek | C#, GPL-3.0 | Windows Update driver inventory only (per a news article, README not read). | Same source as ours, no install. |
+| AbdulMoizAns/win-driver-updater | Python, MIT | Already in the table above. | Done. |
+
+Not on GitHub: Snappy Driver Installer Origin lives on SourceForge. Search also returned repos named
+after IObit or "booster" with no code and star-farming forks; treat those as untrusted and do not run
+anything from them.
+
+Findings that change the plan for Driverix:
+- Verify exported backups per file with SHA-256 and store the hashes in the manifest (check what
+  `backup.rs` does today before adding).
+- Add the *Review* state: when version order and date order disagree, do not offer an install, show why.
+  This also covers the 1970 and future-date cases from section 8.2.
+- Restore order when many packages are restored: network and storage drivers first.
+
+## 8. Driver Booster Free 10.2.0: feature gap (static read, 2026-10-28)
+
+Owner-authorised (see the header). Method: read-only inventory of the installed product folder and
+of its UI string table (`Language\English.lng`, UTF-16 LE). **Observed:** which screens, tools and
+options exist. **Not done:** `DriverBooster.exe` was not decompiled, nothing was run or sniffed, and
+its cloud driver database and endpoints were not examined. They would break the Windows-Update-only
+invariant in `AGENTS.md`. Nothing from the product (text, code, data) is copied into this repo; the
+list below is our own wording of behaviour.
+
+| Driver Booster feature | Driverix today | Verdict |
+|---|---|---|
+| Ignore list: skip one update, or every update of a device | none | **Adopt** (pure UI + persisted ids; `guard` still re-checks) |
+| Scheduler: scan at startup or at a fixed frequency, tray, auto-update when idle | none | **Adopt scan-only** (Task Scheduler + notify); unattended install stays out |
+| Fix Device Error: list Config Manager problem codes, explain, retry | reads the code, shows it raw | **Adopt** (pt-BR code table + `pnputil /restart-device`) |
+| Clean invalid (disconnected) device data, driver files kept | none | **Adopt**, admin + explicit confirm (`pnputil /enum-devices /disconnected`, `/remove-device`) |
+| Driver update history | manifests exist in backups, no history view | **Adopt** (derive from manifests) |
+| Export list of found updates | `--json` in CLI only | **Adopt** (UI button) |
+| Backup retention (max versions kept) | unbounded | **Adopt** (prune oldest, never the newest) |
+| Auto reboot after install | reboot flag reported | **Maybe** (opt-in, only when `RebootRequired`) |
+| System Restore tab (list restore points) | creates/reuses one only | Maybe, low value |
+| Offline Driver Updater (export device info, fetch on another PC, install) | JSON device export | **Blocked**: needs a source other than Windows Update (Update Catalog, ToS unconfirmed, section 3.2) |
+| WHQL-only filter | N/A: Windows Update packages are always Microsoft-signed | Skip |
+| Auto restore point / auto backup toggles | always on by design | Skip (invariant) |
+| Game-driver scan, vendor-direct drivers | none | Skip (vendor endpoints, section 3.4-3.6) |
+| Fix network (hosts file, clock), fix sound, fix resolution | rollback covers the driver cause | Skip (not driver update; rollback is the safer fix) |
+| Software updater, VPN, screen recorder, game boost, PC scan, sale/trial screens | none | Skip (out of scope; upsell surface) |
+
+Takeaway: the useful, safe delta is small and local. None of it needs a new update source. Suggested
+order: ignore list, device-error table with retry, update history + export, backup retention, ghost
+device cleanup, scan-only scheduler.
+
+### 8.1 How it works (static analysis, local files only)
+
+Method: strings of the install-flow modules plus a Ghidra 12.1.4 headless decompile of a copy of
+`DriverUpdate.exe` (Delphi, x86; the REA `analyze` run hit its 330 s provider timeout, so Ghidra was
+driven directly). No network, the app was never run. **Observed** = visible in imports, strings or
+decompiled code. **Inferred** = reading of names only. Delphi RTTI is stripped to `FUN_xxxxxxxx`, so
+the call graph of the install flow was not recovered. Coverage is partial, not a full audit.
+
+- **Install is out of process (observed).** The app shells out to `dpinst.exe` / `DpInstX32|64.exe`;
+  `dbinst.exe` calls `UpdateDriverForPlugAndPlayDevices`. A named mutex stops a second installer
+  (log line: another instance exists), and the helper's `DPINST.LOG` is copied into the app logs and
+  deleted. **Driverix:** already uses `pnputil`; it has an in-process `BusyGuard`, but nothing stops
+  two app instances installing at once. Candidate: single-instance lock for the elevated install path.
+- **Rescan after install (observed).** `CM_Reenumerate_DevNode` and `CM_Get_DevNode_Status` are imported
+  by the scanner and fault-fix modules. Equivalent for us: `pnputil /scan-devices` then re-read the
+  problem code (`install.rs` already verifies).
+- **Restore point (observed, string only).** `CreateRestorePoint` is a string, so it is loaded at run
+  time. Order versus the install is not recovered. Driverix's order (restore point first, abort on
+  failure) is already stricter by design.
+- **Signature (observed).** The scanner loads `WINTRUST.DLL`/`WinVerifyTrust` dynamically and has a
+  "not found" fallback; INF rows carry a WHQL flag and a `CatalogFile`. Nothing new for us: Windows
+  Update packages are already Microsoft-signed.
+- **Download is a separate helper (observed).** A queue is handed to `DBDownloader.exe` through
+  `CreateProcessW`. Not applicable: Windows Update downloads for us.
+- **Reboot (observed, decompiled).** One helper enables `SeShutdownPrivilege` and calls `ExitWindowsEx`
+  for log off, reboot, shutdown, forced variants, or `SetSuspendState`. Only used when the user opts in.
+  Candidate for the "auto reboot" option: act only when `RebootRequired` is true, never forced.
+- **Ignore list (observed, strings).** The scanner logs `IgnoreByDpInst` for installed and matched
+  hardware IDs: ignore keys are per device and per update, applied at scan time (inferred).
+- **Not recovered:** how it ranks candidates against the installed driver, and anything about its
+  cloud database. Both would need endpoints or data we are not using.
+
+### 8.2 How it discovers drivers (static, `Scanner.dll` strings + local config)
+
+Deliberately high level: server addresses, request/response field names and the obfuscated local
+database file are left out of this repo. They describe a private service and we do not use it.
+
+- **Discovery is server-side (observed).** The scanner enumerates devices locally (SetupAPI,
+  `CM_Get_DevNode_Status`), builds a request from hardware and compatible IDs plus the installed
+  version and date, sends it over its own HTTP client, and receives per device: the newest candidate,
+  file name/size/hash, download URLs, a WHQL flag and a flags field. The match is a curated
+  hardware-ID catalog on the vendor's side, which is why the UI says drivers pass "strict review rules".
+  The equivalent open sources are in section 3 (Windows Update, Catalog, SDI-O DriverPacks).
+- **The client still decides locally (observed, from log messages).** After the answer it skips a
+  device when: local version >= offered version; local date is later than the offered one; the
+  installed row has a 1970 date and is not Microsoft's; the offer targets another OS; the user ignored
+  that hardware ID or key; or the helper installer already handled it. A flag can mark an offer
+  "rare" (shown or hidden) or "deferred" (hold back a newly released driver). NVIDIA PhysX is dropped
+  when no NVIDIA device exists.
+- **Request hygiene (observed, `RqstFilter.ini`).** IDs starting with junk characters or digits are
+  dropped before sending, with a small allow list of prefixes. OEM names from SMBIOS are normalised
+  through a map (`Vendor.ini`) so OEM-specific drivers can be offered.
+- **Caching and cost (observed).** Three JSON stores: last device snapshot, last server answer with an
+  expiry, and a delta of devices whose core info changed since the snapshot, so repeat scans resend
+  only what changed. A database version is compared to invalidate the cache.
+- **Priority (observed, `InstConf.ini`).** PCI and HDAUDIO devices are marked important. A list of
+  setup result codes is treated as non-fatal after install. We should not copy that: `install.rs`
+  counts success only when the device reports the new version.
+
+### 8.3 Where its drivers come from (static, strings of the downloader modules)
+
+- **Two kinds of source (observed from field and module names).** Packages hosted by the vendor's own
+  download servers in a repackaged archive format, and "external links" that point at the original
+  hardware maker's download with its own hash and an archive-type hint. Which one a driver gets is
+  decided server-side.
+- **Provenance (inferred, not provable offline).** Nothing in the binaries says how the catalog is fed.
+  The WHQL flag and the "review rules" wording suggest hand-curated or crawled maker packages plus
+  Microsoft-signed ones. Treat the catalog as unaudited.
+- **Transport and integrity (observed).** Plain HTTP, with an MD5 check after download; SHA-1/SHA-256
+  and a fingerprint helper exist in the same module, but the file-check messages name MD5. MD5 over HTTP
+  is not tamper-proof; what protects the user is the driver signature check done by Windows at install.
+  Driverix should never rely on hash-over-HTTP; it gets Microsoft-signed packages from Windows Update.
+- **Telemetry (observed).** The modules contain endpoints for usage statistics and for per-install and
+  per-download events. A design rule we already have ("no telemetry") stays a differentiator.
+- **Error-code help (observed).** `ErrCodeSpec\<language>.ini` is the Device Manager error text, one
+  section per code. It is Microsoft's own help text, so we write our own pt-BR table from Microsoft
+  Learn instead of copying it.
+
+Takeaways for Driverix (none needs a new source):
+1. **Persist the last scan** (result + timestamp) and show its age; a cold Windows Update search takes
+   about a minute. A cached result must never feed `guard::select_offers`: installs still need a fresh
+   in-memory scan.
+2. **Date sanity**: `matching.rs` decides on version only. Treat a future date or a 1970 date on a
+   non-Microsoft row as `Unknown` instead of trusting it.
+3. **"Deferred" offers**: optionally hold back a driver published in the last N days.
+4. **Ignore keys** per hardware ID and per update (already in the section 8 list).
