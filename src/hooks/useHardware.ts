@@ -9,6 +9,11 @@ export type HardwareState =
   /** `previous` is the last good view, so a failed refresh does not blank the panel. */
   | { kind: "error"; message: string; previous?: HardwareView };
 
+/** The last good view a state still holds; a retry after a failed refresh must keep it too. */
+export function lastView(s: HardwareState): HardwareView | undefined {
+  return s.kind === "done" ? s.view : s.kind === "idle" ? undefined : s.previous;
+}
+
 export function useHardware() {
   const [state, setState] = useState<HardwareState>({ kind: "idle" });
 
@@ -18,18 +23,11 @@ export function useHardware() {
   const load = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
-    setState((s) => ({
-      kind: "loading",
-      previous: s.kind === "done" ? s.view : s.kind === "loading" ? s.previous : undefined,
-    }));
+    setState((s) => ({ kind: "loading", previous: lastView(s) }));
     try {
       setState({ kind: "done", view: await api.loadHardware() });
     } catch (e) {
-      setState((s) => ({
-        kind: "error",
-        message: String(e),
-        previous: s.kind === "loading" ? s.previous : undefined,
-      }));
+      setState((s) => ({ kind: "error", message: String(e), previous: lastView(s) }));
     } finally {
       inFlight.current = false;
     }
