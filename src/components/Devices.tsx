@@ -31,6 +31,13 @@ export function Devices({ devices }: { devices: Device[] }) {
   // A second click must restart the message, and unmount must not leave a timer behind.
   useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
 
+  const clearFilters = () => {
+    setQuery("");
+    setOnlyProblems(false);
+    setOnlyOld(false);
+    setCls("");
+  };
+
   const classes = useMemo(() => [...new Set(devices.map((d) => d.class).filter(Boolean))].sort(), [devices]);
   const index = useMemo(() => indexDevices(devices), [devices]);
   const shown = useMemo(
@@ -138,7 +145,16 @@ export function Devices({ devices }: { devices: Device[] }) {
           {shown.length === 0 && (
             <tr>
               <td colSpan={6} className="empty" role="status">
-                {devices.length === 0 ? "Nenhum dispositivo listado." : "Nenhum dispositivo corresponde aos filtros."}
+                {devices.length === 0 ? (
+                  "Nenhum dispositivo listado."
+                ) : (
+                  <>
+                    Nenhum dispositivo corresponde aos filtros.{" "}
+                    <button type="button" onClick={clearFilters}>
+                      Limpar filtros
+                    </button>
+                  </>
+                )}
               </td>
             </tr>
           )}
