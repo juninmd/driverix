@@ -2,6 +2,10 @@
 
 Driverix: Tauri 2 desktop driver updater for Windows. Rust backend (`src-tauri/`) inventories hardware, asks Windows Update for driver updates, backs up and installs them, and can roll back; React 19 + Tailwind v4 frontend (`src/`). UI copy is pt-BR; code, comments and commits are English. Sibling of [Faxina](https://github.com/juninmd/faxina): same stack and conventions.
 
+## Stack
+- Rust backend in `src-tauri/` (Tauri 2, PowerShell scripts for Windows APIs); React 19 + Tailwind v4 frontend in `src/`.
+- Bun for JS tooling; Biome for lint and format; TypeScript typecheck.
+
 ## Commands
 
 | Task | Command |
@@ -15,11 +19,15 @@ Driverix: Tauri 2 desktop driver updater for Windows. Rust backend (`src-tauri/`
 
 `cargo` needs `../dist` (`tauri::generate_context!` embeds it): run `bun run build` once on a clean checkout.
 
-## Layout
+## Structure
 
 - `matching.rs` pure: version parsing/compare, candidate-vs-device decision, offers. `model.rs` serde shapes shared with `src/lib/api.ts` (keep in sync).
 - `ps.rs` runs the fixed scripts in `scripts/*.ps1` (`-EncodedCommand`); caller data goes in the `DRIVERIX_INPUT` env var as JSON, never into the script text.
 - `inventory.rs` / `updates.rs` parse script output (pure, tested); `guard.rs` validates every request; `host.rs` is the `Host` trait plus `WindowsHost` (PowerShell + `pnputil`); `install.rs` is the install/rollback flow, tested against a fake `Host`; `vendors.rs` offline PCI/USB vendor + class table (pure, tested; fills `Device.vendor`/`hint`); `hardware.rs` + `scripts/hardware.ps1` the AIDA64-style overview (script -> `HardwareInfo` -> labelled `Section`s shared by the UI and the text report; read-only); `backup.rs` manifests; `commands.rs` the only Tauri surface.
+
+## Conventions
+- UI copy is pt-BR; code, comments and commits are English.
+- Commits follow Conventional Commits, checked by commitlint in CI (`commitlint.config.js`).
 
 ## Safety invariants (do not weaken)
 
